@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MikroKu — Mockup v0.1</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', system-ui, sans-serif; }
+  body { background:#EDEAE2; padding:28px 16px 40px; color:#161616; }
+  h1.title { text-align:center; font-size:26px; font-weight:900; letter-spacing:-.5px; }
+  p.sub { text-align:center; color:#555; margin:6px 0 26px; font-size:14px; }
+  .row { display:flex; gap:22px; justify-content:center; flex-wrap:wrap; }
+  .phone { width:300px; background:#FFFDF7; border:3px solid #161616; border-radius:28px;
+           box-shadow:7px 7px 0 #161616; overflow:hidden; }
+  .notch { height:22px; display:flex; justify-content:center; align-items:center; }
+  .notch i { width:74px; height:13px; background:#161616; border-radius:8px; display:block; }
+  .screen { padding:10px 14px 16px; min-height:520px; display:flex; flex-direction:column; }
+  .caption { text-align:center; font-weight:800; margin-top:12px; font-size:14px; }
+  .appbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .logo { font-size:21px; font-weight:900; } .logo span { background:#FFD02E; border:2.5px solid #161616;
+    border-radius:8px; padding:1px 7px; box-shadow:3px 3px 0 #161616; }
+  .iconbtn { width:34px; height:34px; border:2.5px solid #161616; border-radius:10px; background:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:16px; box-shadow:2.5px 2.5px 0 #161616; }
+  .card { background:#fff; border:2.5px solid #161616; border-radius:14px; padding:11px 12px;
+    box-shadow:3.5px 3.5px 0 #161616; margin-bottom:11px; }
+  .rname { font-weight:900; font-size:16px; display:flex; align-items:center; gap:7px; }
+  .dot { width:10px; height:10px; border-radius:50%; border:2px solid #161616; }
+  .on { background:#2FBF71; } .off { background:#FF5A5A; }
+  .rmeta { color:#666; font-size:12px; margin-top:3px; }
+  .chips { display:flex; gap:6px; margin-top:8px; }
+  .chip { font-size:11px; font-weight:700; border:2px solid #161616; border-radius:999px; padding:2px 8px; background:#FFF3C4; }
+  .chip.blue { background:#DCEEFF; } .chip.grey { background:#EEE; }
+  .fab { margin-top:auto; background:#FFD02E; border:3px solid #161616; border-radius:14px; padding:12px;
+    font-weight:900; font-size:15px; text-align:center; box-shadow:4px 4px 0 #161616; }
+  .back { font-size:13px; font-weight:800; color:#161616; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .stat .lbl { font-size:11px; font-weight:800; color:#777; text-transform:uppercase; letter-spacing:.4px; }
+  .stat .val { font-size:20px; font-weight:900; margin-top:2px; }
+  .stat .val small { font-size:12px; font-weight:700; color:#666; }
+  .bar { height:9px; border:2px solid #161616; border-radius:99px; margin-top:7px; background:#fff; overflow:hidden; }
+  .bar i { display:block; height:100%; background:#2FBF71; }
+  .bar i.y { background:#FFD02E; } .bar i.r { background:#FF5A5A; }
+  .wide .val { font-size:17px; }
+  .btn-danger { background:#FF5A5A; color:#fff; border:2.5px solid #161616; border-radius:11px;
+    padding:9px; text-align:center; font-weight:900; box-shadow:3px 3px 0 #161616; font-size:14px; }
+  .ifrow { display:flex; justify-content:space-between; align-items:center; }
+  .ifname { font-weight:900; font-size:14px; } .ifip { font-size:11px; color:#666; }
+  .rate { text-align:right; font-size:12px; font-weight:800; }
+  .rate .rx { color:#1B8C4E; } .rate .tx { color:#B47600; }
+  .spark { display:flex; align-items:flex-end; gap:2.5px; height:30px; margin-top:8px; }
+  .spark i { flex:1; background:#2FBF71; border:1.8px solid #161616; border-radius:2px 2px 0 0; }
+  .spark i.t { background:#FFD02E; }
+  .tabbar { display:flex; gap:8px; margin-top:auto; }
+  .tab { flex:1; text-align:center; font-size:11px; font-weight:800; padding:7px 0; border:2.5px solid #161616;
+    border-radius:10px; background:#fff; }
+  .tab.act { background:#FFD02E; box-shadow:2.5px 2.5px 0 #161616; }
+  .secttl { font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.5px; margin:4px 0 8px; }
+</style>
+</head>
+<body>
+<h1 class="title">MikroKu — Mockup v0.1 (Monitoring)</h1>
+<p class="sub">Soft neobrutalism • Bahasa Indonesia • 3 layar utama • Bukan aplikasi final</p>
+<div class="row">
+
+  <!-- Layar 1: Daftar Router -->
+  <div>
+    <div class="phone"><div class="notch"><i></i></div><div class="screen">
+      <div class="appbar"><div class="logo"><span>M</span> MikroKu</div><div class="iconbtn">⚙️</div></div>
+      <div class="card">
+        <div class="rname"><span class="dot on"></span>Router Toko</div>
+        <div class="rmeta">192.168.88.1 • RB750Gr3 • ROS 6.49.10</div>
+        <div class="chips"><span class="chip">CPU 12%</span><span class="chip blue">Uptime 14 hari</span></div>
+      </div>
+      <div class="card">
+        <div class="rname"><span class="dot on"></span>Router Rumah</div>
+        <div class="rmeta">192.168.1.1 • RB951Ui-2HnD • ROS 6.48.6</div>
+        <div class="chips"><span class="chip">CPU 4%</span><span class="chip blue">Uptime 3 hari</span></div>
+      </div>
+      <div class="card" style="opacity:.75">
+        <div class="rname"><span class="dot off"></span>Router Kos — Offline</div>
+        <div class="rmeta">10.10.10.1 • RB941-2nD • Terakhir terlihat 2 jam lalu</div>
+        <div class="chips"><span class="chip grey">Ketuk untuk coba lagi</span></div>
+      </div>
+      <div class="fab">＋ Tambah Router</div>
+    </div></div>
+    <div class="caption">1 — Daftar Router</div>
+  </div>
+
+  <!-- Layar 2: Dashboard -->
+  <div>
+    <div class="phone"><div class="notch"><i></i></div><div class="screen">
+      <div class="appbar"><div class="back">← Kembali</div><div class="iconbtn">↻</div></div>
+      <div class="card wide">
+        <div class="rname"><span class="dot on"></span>Router Toko</div>
+        <div class="rmeta">RB750Gr3 (hEX) • RouterOS 6.49.10 • API 8728</div>
+      </div>
+      <div class="grid">
+        <div class="card stat"><div class="lbl">CPU</div><div class="val">12<small>%</small></div><div class="bar"><i style="width:12%"></i></div></div>
+        <div class="card stat"><div class="lbl">RAM Bebas</div><div class="val">178<small> / 256 MB</small></div><div class="bar"><i class="y" style="width:30%"></i></div></div>
+        <div class="card stat"><div class="lbl">Uptime</div><div class="val">14<small> hari </small>6<small> jam</small></div></div>
+        <div class="card stat"><div class="lbl">Suhu</div><div class="val">41<small>°C</small></div><div class="bar"><i style="width:41%"></i></div></div>
+      </div>
+      <div class="card wide"><div class="lbl" style="font-size:11px;font-weight:800;color:#777">TOTAL TRAFIK (ether1 — WAN)</div>
+        <div class="val">↓ 84,2 Mbps &nbsp; ↑ 12,7 Mbps</div>
+        <div class="spark"><i style="height:35%"></i><i style="height:55%"></i><i style="height:40%"></i><i style="height:70%"></i><i style="height:62%"></i><i style="height:88%"></i><i style="height:76%"></i><i class="t" style="height:95%"></i><i style="height:68%"></i><i style="height:80%"></i></div>
+      </div>
+      <div class="btn-danger">⟳ &nbsp;Reboot Router</div>
+      <div class="tabbar"><div class="tab act">Dashboard</div><div class="tab">Interface</div><div class="tab">Pengguna</div><div class="tab">Lainnya</div></div>
+    </div></div>
+    <div class="caption">2 — Dashboard Router</div>
+  </div>
+
+  <!-- Layar 3: Interface -->
+  <div>
+    <div class="phone"><div class="notch"><i></i></div><div class="screen">
+      <div class="appbar"><div class="back">← Router Toko</div><div class="iconbtn">↻</div></div>
+      <div class="secttl">Interface — diperbarui tiap 2 detik</div>
+      <div class="card">
+        <div class="ifrow"><div><div class="ifname"><span class="dot on" style="display:inline-block"></span> ether1 — WAN</div><div class="ifip">36.68.xx.xx • IndiHome</div></div>
+        <div class="rate"><div class="rx">↓ 84,2 Mbps</div><div class="tx">↑ 12,7 Mbps</div></div></div>
+        <div class="spark"><i style="height:45%"></i><i style="height:60%"></i><i style="height:52%"></i><i style="height:78%"></i><i style="height:66%"></i><i style="height:90%"></i><i style="height:72%"></i><i style="height:84%"></i></div>
+      </div>
+      <div class="card">
+        <div class="ifrow"><div><div class="ifname"><span class="dot on" style="display:inline-block"></span> ether2 — LAN</div><div class="ifip">192.168.88.1/24</div></div>
+        <div class="rate"><div class="rx">↓ 12,4 Mbps</div><div class="tx">↑ 83,9 Mbps</div></div></div>
+      </div>
+      <div class="card">
+        <div class="ifrow"><div><div class="ifname"><span class="dot on" style="display:inline-block"></span> wlan1 — WiFi Toko</div><div class="ifip">192.168.88.1 • 14 klien</div></div>
+        <div class="rate"><div class="rx">↓ 3,1 Mbps</div><div class="tx">↑ 9,8 Mbps</div></div></div>
+      </div>
+      <div class="card" style="opacity:.7">
+        <div class="ifrow"><div><div class="ifname"><span class="dot off" style="display:inline-block"></span> ether5 — Mati</div><div class="ifip">Tidak ada kabel</div></div>
+        <div class="rate"><div>0 Mbps</div></div></div>
+      </div>
+      <div class="tabbar"><div class="tab">Dashboard</div><div class="tab act">Interface</div><div class="tab">Pengguna</div><div class="tab">Lainnya</div></div>
+    </div></div>
+    <div class="caption">3 — Interface &amp; Trafik</div>
+  </div>
+
+</div>
+</body>
+</html>
