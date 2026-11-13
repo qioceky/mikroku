@@ -8,8 +8,14 @@ Dibangun lengkap secara bertahap: mulai dari monitoring (v0.1), menuju dashboard
 admin penuh setara pekerjaan harian di WinBox. Rancangan lengkap ada di
 [`RANCANGAN.md`](RANCANGAN.md).
 
-## Fitur v0.1.0 — Monitoring
+## Fitur v0.1.1 — Monitoring + layar awal model aplikasi resmi
 
+- **Layar awal 3 tab** (sejak v0.1.1, meniru pola aplikasi resmi atas
+  permintaan pengguna): **MASUK** (form login langsung: Address, Username,
+  Password, centang simpan password, tombol SIMPAN / SAMBUNGKAN, pemilih
+  API 8728 / API-SSL 8729), **TERSIMPAN** (daftar router), **DITEMUKAN**
+  (penemuan router di LAN lewat MNDP — protokol yang sama dengan WinBox,
+  UDP 5678; ketuk hasil untuk mengisi form masuk).
 - Daftar router (banyak router), status online/offline, tambah/ubah/hapus.
 - Dashboard per router: identitas, board, versi RouterOS, CPU, RAM, uptime,
   jam router, suhu/tegangan (bila board mendukung) — auto-refresh.
@@ -28,7 +34,9 @@ admin penuh setara pekerjaan harian di WinBox. Rancangan lengkap ada di
 - Mode api polos (8728): sejak RouterOS 6.43 password login terkirim tanpa
   enkripsi di dalam koneksi — aplikasi menampilkan peringatan; gunakan hanya
   di LAN tepercaya atau lewat VPN, jangan buka port API ke internet.
-- Izin aplikasi hanya 2: `INTERNET` dan `ACCESS_NETWORK_STATE`.
+- Izin aplikasi hanya 4: `INTERNET`, `ACCESS_NETWORK_STATE`, dan (sejak
+  v0.1.1, khusus tab Ditemukan) `ACCESS_WIFI_STATE` +
+  `CHANGE_WIFI_MULTICAST_STATE` untuk menerima broadcast MNDP.
 
 ## Build
 

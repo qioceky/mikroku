@@ -12,8 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,9 +34,9 @@ import id.mikroku.data.RouterStore
 import kotlinx.coroutines.launch
 
 sealed interface Screen {
-    data object RouterList : Screen
+    data object Home : Screen
     data class EditRouter(val profile: RouterProfile?) : Screen
-    data class Detail(val routerId: String) : Screen
+    data class Detail(val profile: RouterProfile) : Screen
     data object Guide : Screen
     data object About : Screen
 }
@@ -46,17 +46,30 @@ fun MikroKuApp() {
     val context = LocalContext.current
     val store = remember { RouterStore(context) }
     var routers by remember { mutableStateOf(store.load()) }
-    var screen by remember { mutableStateOf<Screen>(Screen.RouterList) }
+    var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     val statuses = remember { mutableStateMapOf<String, Boolean>() }
     val scope = rememberCoroutineScope()
+    var prefill by remember { mutableStateOf<RouterProfile?>(null) }
+    var prefillRequest by remember { mutableStateOf(0) }
 
     fun persist(updated: List<RouterProfile>) {
         routers = updated
         store.save(updated)
     }
 
+    fun upsert(profile: RouterProfile) {
+        persist(
+            if (routers.any { it.id == profile.id }) routers.map { if (it.id == profile.id) profile else it }
+            else routers + profile
+        )
+    }
+
     fun checkStatuses() {
         routers.forEach { profile ->
+            if (profile.password.isBlank()) {
+                statuses[profile.id] = false
+                return@forEach
+            }
             scope.launch {
                 val fp = try {
                     MonitorRepo.testConnection(profile)
@@ -65,7 +78,6 @@ fun MikroKuApp() {
                     return@launch
                 }
                 statuses[profile.id] = true
-                // Simpan sidik jari sertifikat (TOFU) hasil koneksi SSL pertama.
                 if (fp != null && profile.certFingerprint == null) {
                     persist(routers.map { if (it.id == profile.id) it.copy(certFingerprint = fp) else it })
                 }
@@ -76,115 +88,67 @@ fun MikroKuApp() {
     MikroKuTheme {
         Box(Modifier.fillMaxSize().background(Paper)) {
             when (val s = screen) {
-                is Screen.RouterList -> {
+                is Screen.Home -> {
                     LaunchedEffect(routers.size) { checkStatuses() }
-                    RouterListScreen(
+                    HomeScreen(
                         routers = routers,
                         statuses = statuses,
-                        onAdd = { screen = Screen.EditRouter(null) },
-                        onOpen = { screen = Screen.Detail(it.id) },
-                        onEdit = { screen = Screen.EditRouter(it) },
+                        prefill = prefill,
+                        prefillRequest = prefillRequest,
+                        onConnect = { session, saveAs ->
+                            if (saveAs != null) upsert(saveAs)
+                            screen = Screen.Detail(session)
+                        },
+                        onSaveOnly = { upsert(it) },
+                        onOpenSaved = { profile ->
+                            if (profile.password.isBlank()) {
+                                // Password memang tidak disimpan — minta lewat form masuk.
+                                prefill = profile
+                                prefillRequest++
+                            } else {
+                                screen = Screen.Detail(profile)
+                            }
+                        },
+                        onEditSaved = { screen = Screen.EditRouter(it) },
+                        onRefreshSaved = { statuses.clear(); checkStatuses() },
                         onGuide = { screen = Screen.Guide },
-                        onAbout = { screen = Screen.About },
-                        onRefresh = { statuses.clear(); checkStatuses() }
+                        onAbout = { screen = Screen.About }
                     )
                 }
                 is Screen.EditRouter -> RouterEditScreen(
                     initial = s.profile,
-                    onBack = { screen = Screen.RouterList },
+                    onBack = { screen = Screen.Home },
                     onSave = { saved ->
-                        persist(
-                            if (routers.any { it.id == saved.id }) routers.map { if (it.id == saved.id) saved else it }
-                            else routers + saved
-                        )
-                        screen = Screen.RouterList
+                        upsert(saved)
+                        screen = Screen.Home
                     },
                     onDelete = { toDelete ->
                         persist(routers.filter { it.id != toDelete.id })
-                        screen = Screen.RouterList
+                        screen = Screen.Home
                     }
                 )
-                is Screen.Detail -> {
-                    val profile = routers.firstOrNull { it.id == s.routerId }
-                    if (profile == null) {
-                        screen = Screen.RouterList
-                    } else {
-                        RouterDetailScreen(
-                            profile = profile,
-                            onBack = { screen = Screen.RouterList },
-                            onFingerprintLearned = { fp ->
-                                persist(routers.map { if (it.id == profile.id) it.copy(certFingerprint = fp) else it })
-                            }
-                        )
+                is Screen.Detail -> RouterDetailScreen(
+                    profile = s.profile,
+                    onBack = { screen = Screen.Home },
+                    onFingerprintLearned = { fp ->
+                        if (routers.any { it.id == s.profile.id }) {
+                            persist(routers.map { if (it.id == s.profile.id) it.copy(certFingerprint = fp) else it })
+                        }
                     }
-                }
-                is Screen.Guide -> GuideScreen(onBack = { screen = Screen.RouterList })
-                is Screen.About -> AboutScreen(onBack = { screen = Screen.RouterList })
+                )
+                is Screen.Guide -> GuideScreen(onBack = { screen = Screen.Home })
+                is Screen.About -> AboutScreen(onBack = { screen = Screen.Home })
             }
         }
     }
 }
 
 @Composable
-private fun RouterListScreen(
-    routers: List<RouterProfile>,
-    statuses: Map<String, Boolean>,
-    onAdd: () -> Unit,
-    onOpen: (RouterProfile) -> Unit,
-    onEdit: (RouterProfile) -> Unit,
-    onGuide: () -> Unit,
-    onAbout: () -> Unit,
-    onRefresh: () -> Unit
-) {
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("MikroKu", fontSize = 26.sp, fontWeight = FontWeight.Black)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SmallHeaderButton("Panduan") { onGuide() }
-                SmallHeaderButton("Tentang") { onAbout() }
-            }
-        }
-        Text("Panel admin MikroTik RouterOS v6", color = Muted, fontSize = 13.sp)
-        Spacer(Modifier.height(14.dp))
-
-        if (routers.isEmpty()) {
-            NeoCard {
-                Text("Belum ada router", fontWeight = FontWeight.Black, fontSize = 16.sp)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Tambahkan router pertamamu. Pastikan service API (port 8728/8729) sudah aktif di router — lihat Panduan bila belum.",
-                    color = Muted, fontSize = 13.sp
-                )
-            }
-        } else {
-            LazyColumn(
-                Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(routers, key = { it.id }) { profile ->
-                    RouterCard(
-                        profile = profile,
-                        online = statuses[profile.id],
-                        onOpen = { onOpen(profile) },
-                        onEdit = { onEdit(profile) }
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            NeoButton("Segarkan", Modifier.weight(1f), fill = androidx.compose.ui.graphics.Color.White) { onRefresh() }
-            NeoButton("+ Tambah Router", Modifier.weight(2f)) { onAdd() }
-        }
-    }
-}
-
-@Composable
-private fun SmallHeaderButton(text: String, onClick: () -> Unit) {
+fun SmallHeaderButton(text: String, onClick: () -> Unit) {
     Box(
         Modifier
-            .background(androidx.compose.ui.graphics.Color.White, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-            .border(2.dp, Ink, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+            .background(Color.White, RoundedCornerShape(10.dp))
+            .border(2.dp, Ink, RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
@@ -193,7 +157,7 @@ private fun SmallHeaderButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun RouterCard(
+fun RouterCard(
     profile: RouterProfile,
     online: Boolean?,
     onOpen: () -> Unit,
@@ -211,6 +175,9 @@ private fun RouterCard(
                     )
                     if (profile.note.isNotBlank()) {
                         Text(profile.note, color = Muted, fontSize = 12.sp)
+                    }
+                    if (profile.password.isBlank()) {
+                        Text("Password tidak disimpan — ketuk untuk login", color = Muted, fontSize = 12.sp)
                     }
                 }
             }

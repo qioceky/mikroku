@@ -1,6 +1,8 @@
 # RANCANGAN — MikroKu (aplikasi mobile MikroTik)
 
-Tanggal: 2026-11-13. Status: RANCANGAN direvisi, menunggu persetujuan mockup dari user.
+Tanggal: 2026-11-13. Status: v0.1.0 RILIS 2026-11-13 (repo `qioceky/mikroku`,
+CI run `43364795785` hijau, APK 6.537.968 byte, signer SHA-256
+`835D38CA…6CBB` terverifikasi apksigner). Menunggu uji lapangan user.
 Keputusan user (2026-11-13): **lengkap bertahap, mulai dari monitoring.**
 REVISI 2026-11-13 (09:05 WIB): user mengonfirmasi routernya **RouterOS v6** —
 jalur konek DIBALIK: API biner 8728/8729 jadi jalur utama v0.1, REST v7 turun
