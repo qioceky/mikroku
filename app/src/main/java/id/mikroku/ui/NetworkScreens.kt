@@ -55,7 +55,11 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
         Triple("queue", "Queue", "Simple queue + queue tree"),
         Triple("tools", "Tools", "Ping & traceroute dari router"),
         Triple("sistem", "Sistem", "User, scheduler, script, log, file, backup"),
-        Triple("dns", "DNS", "Server DNS, entri static, dan cache")
+        Triple("wireless", "Wireless", "SSID, mode, dan perangkat terhubung"),
+        Triple("bridge", "Bridge", "Bridge dan port-portnya"),
+        Triple("vlan", "VLAN", "Interface VLAN 802.1Q"),
+        Triple("dns", "DNS", "Server DNS, entri static, dan cache"),
+        Triple("konsol", "Konsol API", "Jalankan perintah API mentah")
     )
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(items.chunked(2)) { pair ->
@@ -89,7 +93,11 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "queue" -> QueueScreen(manager, onBack)
         "tools" -> ToolsScreen(manager, onBack)
         "sistem" -> SystemScreen(manager, onBack)
+        "wireless" -> WirelessScreen(manager, onBack)
+        "bridge" -> BridgeScreen(manager, onBack)
+        "vlan" -> VlanScreen(manager, onBack)
         "dns" -> DnsScreen(manager, onBack)
+        "konsol" -> ConsoleScreen(manager, onBack)
         else -> IpAddressScreen(manager, onBack)
     }
 }

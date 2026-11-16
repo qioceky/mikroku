@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.mikroku.api.MikrotikClient
+import id.mikroku.data.AdvancedRepo
 import id.mikroku.data.CrudRepo
 import id.mikroku.data.HotspotUserEntry
 import id.mikroku.data.PppSecretEntry
@@ -555,7 +557,33 @@ fun ToolsScreen(manager: SessionManager, onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var resultTitle by remember { mutableStateOf<String?>(null) }
     var lines by remember { mutableStateOf<List<String>>(emptyList()) }
+    var btAddress by remember { mutableStateOf("") }
+    var btDuration by remember { mutableStateOf("5") }
+    var btProtocol by remember { mutableStateOf("tcp") }
+    var btDirection by remember { mutableStateOf("both") }
+    var btRunning by remember { mutableStateOf(false) }
+    var btError by remember { mutableStateOf<String?>(null) }
+    var btResult by remember { mutableStateOf<Map<String, String>?>(null) }
     val scope = rememberCoroutineScope()
+
+    fun runBtest() {
+        val addr = btAddress.trim()
+        val dur = btDuration.trim().toIntOrNull()?.coerceIn(3, 30) ?: 5
+        if (addr.isBlank() || btRunning) return
+        scope.launch {
+            btRunning = true
+            btError = null
+            btResult = null
+            try {
+                btResult = manager.runNoRetry {
+                    AdvancedRepo.runBandwidthTest(it, addr, dur, btProtocol, btDirection)
+                }
+            } catch (e: Exception) {
+                btError = friendlyError(e)
+            }
+            btRunning = false
+        }
+    }
 
     fun runTool(pingMode: Boolean) {
         val addr = target.trim()
@@ -576,7 +604,7 @@ fun ToolsScreen(manager: SessionManager, onBack: () -> Unit) {
         }
     }
 
-    Column {
+    Column(Modifier.verticalScroll(rememberScrollState())) {
         SectionHeader("Tools", onBack) { }
         Spacer(Modifier.height(10.dp))
         Text(
@@ -620,5 +648,65 @@ fun ToolsScreen(manager: SessionManager, onBack: () -> Unit) {
                 }
             }
         }
+        Spacer(Modifier.height(18.dp))
+        Text("Bandwidth Test", fontWeight = FontWeight.Black, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Tes kecepatan DARI router ke server btest (router MikroTik lain yang " +
+                "bandwidth-server-nya aktif). Perlu policy test.",
+            color = Muted, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            btAddress, { btAddress = it },
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("Alamat server btest") }
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            btDuration, { btDuration = it },
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("Durasi (detik, 3–30)") }
+        )
+        Spacer(Modifier.height(8.dp))
+        KindChips(listOf("tcp" to "TCP", "udp" to "UDP"), btProtocol) { btProtocol = it }
+        Spacer(Modifier.height(8.dp))
+        KindChips(
+            listOf("both" to "Dua arah", "transmit" to "Kirim (TX)", "receive" to "Terima (RX)"),
+            btDirection
+        ) { btDirection = it }
+        Spacer(Modifier.height(10.dp))
+        NeoButton(
+            "Mulai Bandwidth Test", fill = Color.White,
+            enabled = !btRunning && btAddress.isNotBlank()
+        ) { runBtest() }
+        if (btRunning) {
+            Spacer(Modifier.height(8.dp))
+            Text("Menjalankan tes dari router…", fontWeight = FontWeight.Bold)
+        }
+        btError?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, color = MikroRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        btResult?.let { res ->
+            Spacer(Modifier.height(10.dp))
+            NeoCard {
+                Text("Hasil Bandwidth Test", fontWeight = FontWeight.Black, fontSize = 14.sp)
+                Spacer(Modifier.height(6.dp))
+                val tx = res["tx-total-average"]?.toLongOrNull()
+                val rx = res["rx-total-average"]?.toLongOrNull()
+                Text("TX rata-rata: ${tx?.let { formatBps(it) } ?: (res["tx-total-average"] ?: "-")}", fontSize = 13.sp)
+                Text("RX rata-rata: ${rx?.let { formatBps(it) } ?: (res["rx-total-average"] ?: "-")}", fontSize = 13.sp)
+                res["status"]?.let { Text("Status: $it", color = Muted, fontSize = 11.sp) }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
     }
+}
+
+internal fun formatBps(bps: Long): String = when {
+    bps >= 1_000_000_000L -> "%.2f Gbps".format(bps / 1_000_000_000.0)
+    bps >= 1_000_000L -> "%.1f Mbps".format(bps / 1_000_000.0)
+    bps >= 1_000L -> "%.1f Kbps".format(bps / 1_000.0)
+    else -> "$bps bps"
 }
