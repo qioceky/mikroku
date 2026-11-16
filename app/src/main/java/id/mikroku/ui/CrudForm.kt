@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -110,10 +111,9 @@ fun CrudFormScreen(
     }
 
     Column {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("← Batal", fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onCancel() })
-            Text(spec.title, fontWeight = FontWeight.Black, fontSize = 16.sp)
-            Spacer(Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            NeoIconButton(Fa.ARROW_LEFT) { onCancel() }
+            Text(spec.title, fontWeight = FontWeight.Black, fontSize = 16.sp, modifier = Modifier.padding(start = 10.dp))
         }
         Spacer(Modifier.height(10.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {

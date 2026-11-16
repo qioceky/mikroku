@@ -70,10 +70,18 @@ fun RouterDetailScreen(
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("← Kembali", fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onBack() })
-            Text(profile.name, fontWeight = FontWeight.Black, fontSize = 17.sp)
-            Text("${profile.host}:${profile.port}", color = Muted, fontSize = 12.sp)
+        if (section != null && connected && connectError == null) {
+            // Di dalam sub-layar cukup SATU header (milik sub-layar itu) —
+            // header router tidak ditumpuk di atasnya.
+            NetworkSectionScreen(section!!, manager) { section = null }
+            return@Column
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            NeoIconButton(Fa.ARROW_LEFT) { onBack() }
+            Column(Modifier.padding(start = 10.dp)) {
+                Text(profile.name, fontWeight = FontWeight.Black, fontSize = 16.sp)
+                Text("${profile.host}:${profile.port}", color = Muted, fontSize = 11.sp)
+            }
         }
         Spacer(Modifier.height(12.dp))
 
@@ -94,10 +102,7 @@ fun RouterDetailScreen(
             }
             !connected -> Text("Menyambungkan ke ${profile.host}…", fontWeight = FontWeight.Bold)
             else -> {
-                val sec = section
-                if (sec != null) {
-                    NetworkSectionScreen(sec, manager) { section = null }
-                } else {
+                Column {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         TabChip("Dashboard", Fa.GAUGE, tab == 0, Modifier.weight(1f)) { tab = 0 }
                         TabChip("Interface", Fa.NETWORK_WIRED, tab == 1, Modifier.weight(1f)) { tab = 1 }

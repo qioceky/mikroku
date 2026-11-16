@@ -41,9 +41,9 @@ fun GuideScreen(onBack: () -> Unit) {
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text("Panduan Koneksi", fontSize = 22.sp, fontWeight = FontWeight.Black)
-            Text("← Kembali", fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onBack() })
+            NeoIconButton(Fa.ARROW_LEFT) { onBack() }
         }
         Spacer(Modifier.height(14.dp))
 
@@ -106,9 +106,9 @@ fun AboutScreen(onBack: () -> Unit) {
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text("Tentang", fontSize = 22.sp, fontWeight = FontWeight.Black)
-            Text("← Kembali", fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onBack() })
+            NeoIconButton(Fa.ARROW_LEFT) { onBack() }
         }
         Spacer(Modifier.height(14.dp))
 

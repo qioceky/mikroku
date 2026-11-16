@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -168,6 +169,31 @@ fun NeoButton(
             contentAlignment = androidx.compose.ui.Alignment.Center
         ) {
             Text(text, fontWeight = FontWeight.Black, fontSize = 15.sp, color = textColor)
+        }
+    }
+}
+
+/** Tombol ikon persegi khas neobrutal — untuk navigasi (kembali, muat ulang, dll). */
+@Composable
+fun NeoIconButton(icon: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(modifier.padding(end = 3.dp, bottom = 3.dp)) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .offset(x = 3.dp, y = 3.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Shadow)
+        )
+        Box(
+            Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(CardFill)
+                .border(2.5.dp, Ink, RoundedCornerShape(10.dp))
+                .clickable { onClick() },
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            FaIcon(icon, size = 15.sp)
         }
     }
 }

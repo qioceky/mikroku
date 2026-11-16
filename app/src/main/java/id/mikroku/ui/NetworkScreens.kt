@@ -177,10 +177,13 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
 
 @Composable
 fun SectionHeader(title: String, onBack: () -> Unit, onRefresh: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("← Menu", fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onBack() })
-        Text(title, fontWeight = FontWeight.Black, fontSize = 16.sp)
-        Text("Muat Ulang", fontWeight = FontWeight.Bold, color = Muted, modifier = Modifier.clickable { onRefresh() })
+    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        NeoIconButton(Fa.ARROW_LEFT) { onBack() }
+        Text(
+            title, fontWeight = FontWeight.Black, fontSize = 17.sp,
+            modifier = Modifier.weight(1f).padding(start = 10.dp)
+        )
+        NeoIconButton(Fa.ROTATE_RIGHT) { onRefresh() }
     }
 }
 

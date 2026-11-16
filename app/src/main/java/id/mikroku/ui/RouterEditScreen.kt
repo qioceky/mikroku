@@ -78,9 +78,9 @@ fun RouterEditScreen(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(if (initial == null) "Tambah Router" else "Ubah Router", fontSize = 22.sp, fontWeight = FontWeight.Black)
-            Text("← Kembali", fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onBack() })
+            NeoIconButton(Fa.ARROW_LEFT) { onBack() }
         }
         Spacer(Modifier.height(14.dp))
 
