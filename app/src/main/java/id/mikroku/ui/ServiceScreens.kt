@@ -170,9 +170,9 @@ private fun hotspotUserForm(existing: HotspotUserEntry?): CrudFormSpec {
         isEdit = edit,
         fields = listOf(
             CrudField("name", "Username", existing?.name ?: "", required = true),
-            CrudField("password", "Password", "",
-                hint = if (edit) "Kosongkan bila tidak diubah" else "Boleh kosong",
-                skipBlankOnEdit = true),
+            CrudField("password", "Password", existing?.password ?: "",
+                hint = if (edit) "Password saat ini dari router — ubah bila perlu" else "Boleh kosong",
+                skipBlankOnEdit = true, isPassword = true),
             CrudField("profile", "Profil", existing?.profile ?: "", hint = "kosong = profil default"),
             CrudField("comment", "Komentar", existing?.comment ?: "")
         ),
@@ -474,9 +474,9 @@ private fun pppSecretForm(existing: PppSecretEntry?): CrudFormSpec {
         isEdit = edit,
         fields = listOf(
             CrudField("name", "Username", existing?.name ?: "", required = true),
-            CrudField("password", "Password", "",
-                hint = if (edit) "Kosongkan bila tidak diubah" else "Boleh kosong",
-                skipBlankOnEdit = true),
+            CrudField("password", "Password", existing?.password ?: "",
+                hint = if (edit) "Password saat ini dari router — ubah bila perlu" else "Boleh kosong",
+                skipBlankOnEdit = true, isPassword = true),
             CrudField("service", "Service", existing?.service ?: "any",
                 options = listOf("any", "pppoe", "pptp", "l2tp", "sstp", "ovpn")),
             CrudField("profile", "Profil", existing?.profile ?: "", hint = "kosong = profil default"),

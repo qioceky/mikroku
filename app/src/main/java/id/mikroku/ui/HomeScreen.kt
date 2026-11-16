@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -129,10 +131,30 @@ fun HomeScreen(
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column {
-                Text("MikroKu", fontSize = 27.sp, fontWeight = FontWeight.Black)
-                Text("v${BuildConfig.VERSION_NAME} • RouterOS v6", color = Muted, fontSize = 12.sp)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // Tile logo: kotak kuning khas MikroKu berikon menara siar FA.
+            Box(Modifier.padding(end = 3.dp, bottom = 3.dp)) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .offset(x = 3.dp, y = 3.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Shadow)
+                )
+                Box(
+                    Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MikroYellow)
+                        .border(2.5.dp, Ink, RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    FaIcon(Fa.TOWER, size = 20.sp, color = Color(0xFF161616))
+                }
+            }
+            Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                Text("MikroKu", fontSize = 23.sp, fontWeight = FontWeight.Black)
+                Text("v${BuildConfig.VERSION_NAME} • RouterOS v6", color = Muted, fontSize = 11.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SmallHeaderButton("Panduan") { onGuide() }
@@ -149,7 +171,8 @@ fun HomeScreen(
         Spacer(Modifier.height(14.dp))
 
         when (tab) {
-            0 -> LoginForm(
+            0 -> NeoCard {
+                LoginForm(
                 address = address, onAddress = { address = it },
                 username = username, onUsername = { username = it },
                 password = password, onPassword = { password = it },
@@ -168,7 +191,8 @@ fun HomeScreen(
                     val saveAs = if (keepPassword) session else null
                     onConnect(session, saveAs)
                 }
-            )
+                )
+            }
             1 -> SavedTab(
                 routers = routers,
                 statuses = statuses,
@@ -217,25 +241,26 @@ private fun LoginForm(
 ) {
     Column(Modifier.verticalScroll(rememberScrollState())) {
         FormField("Address (IP router, boleh tambah :port)") {
-            OutlinedTextField(address, onAddress, Modifier.fillMaxWidth(), singleLine = true,
-                placeholder = { Text("192.168.88.1") })
+            NeoField(address, onAddress, Fa.SERVER, placeholder = "192.168.88.1")
         }
         FormField("Username") {
-            OutlinedTextField(username, onUsername, Modifier.fillMaxWidth(), singleLine = true)
+            NeoField(username, onUsername, Fa.USER)
         }
         FormField("Password") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    password, onPassword, Modifier.weight(1f), singleLine = true,
-                    visualTransformation = if (passwordVisible) VisualTransformation.None
-                    else PasswordVisualTransformation()
-                )
-                Text(
-                    if (passwordVisible) "Sembunyi" else "Lihat",
-                    fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                    modifier = Modifier.clickable { onToggleVisible() }.padding(10.dp)
-                )
-            }
+            NeoField(
+                password, onPassword, Fa.LOCK,
+                visualTransformation = if (passwordVisible) VisualTransformation.None
+                else PasswordVisualTransformation(),
+                trailing = {
+                    Text(
+                        if (passwordVisible) "Sembunyi" else "Lihat",
+                        fontWeight = FontWeight.Bold, fontSize = 12.sp,
+                        modifier = Modifier
+                            .clickable { onToggleVisible() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            )
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -274,6 +299,35 @@ private fun LoginForm(
             color = Muted, fontSize = 12.sp
         )
     }
+}
+
+/** Kolom isian gaya MikroKu: ikon FA di kiri, border tinta, latar Paper. */
+@Composable
+private fun NeoField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    icon: String,
+    placeholder: String? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    trailing: @Composable (() -> Unit)? = null
+) {
+    OutlinedTextField(
+        value, onValueChange,
+        Modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Ink,
+            unfocusedBorderColor = Ink.copy(alpha = 0.4f),
+            focusedContainerColor = Paper,
+            unfocusedContainerColor = Paper,
+            cursorColor = Ink
+        ),
+        placeholder = if (placeholder != null) ({ Text(placeholder, color = Muted) }) else null,
+        leadingIcon = { FaIcon(icon, size = 15.sp, color = Muted) },
+        visualTransformation = visualTransformation,
+        trailingIcon = trailing
+    )
 }
 
 @Composable

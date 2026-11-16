@@ -192,7 +192,7 @@ private fun securityProfileForm(existing: SecurityProfileEntry?): CrudFormSpec {
                 options = listOf("wpa2-psk", "wpa-psk,wpa2-psk", "wpa-psk")),
             CrudField("wpa2-pre-shared-key", "Password WPA2", "",
                 hint = if (edit) "Kosongkan bila tidak diubah" else "Password WiFi (min. 8 karakter)",
-                skipBlankOnEdit = true),
+                skipBlankOnEdit = true, isPassword = true),
             CrudField("comment", "Komentar", existing?.comment ?: "")
         ),
         submit = { client, v ->

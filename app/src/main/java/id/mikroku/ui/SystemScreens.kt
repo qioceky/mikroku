@@ -215,8 +215,8 @@ private fun routerUserForm(existing: RouterUserEntry?): CrudFormSpec {
         fields = listOf(
             CrudField("name", "Username", existing?.name ?: "", required = true),
             CrudField("password", "Password", "",
-                hint = if (edit) "Kosongkan bila tidak diubah" else "Boleh kosong",
-                skipBlankOnEdit = true),
+                hint = if (edit) "RouterOS tidak mengirim balik password user — kosongkan bila tidak diubah" else "Boleh kosong",
+                skipBlankOnEdit = true, isPassword = true),
             CrudField("group", "Grup", existing?.group ?: "read",
                 hint = "full / read / write atau nama grup kustom",
                 options = listOf("full", "read", "write")),

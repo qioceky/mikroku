@@ -47,7 +47,9 @@ data class CrudField(
     /** Pilihan cepat (chips) di bawah kolom; nilai tetap bisa diketik bebas. */
     val options: List<String> = emptyList(),
     /** Saat edit: nilai kosong berarti JANGAN diubah (mis. password). */
-    val skipBlankOnEdit: Boolean = false
+    val skipBlankOnEdit: Boolean = false,
+    /** Kolom password: teks disamarkan + ada tombol Lihat/Tutup. */
+    val isPassword: Boolean = false
 )
 
 /** Spesifikasi satu form tambah/edit beserta cara mengirimnya ke router. */
@@ -118,6 +120,7 @@ fun CrudFormScreen(
         Spacer(Modifier.height(10.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(spec.fields, key = { it.key }) { field ->
+                var shown by remember(field.key) { mutableStateOf(false) }
                 Column {
                     OutlinedTextField(
                         values[field.key] ?: "",
@@ -125,7 +128,21 @@ fun CrudFormScreen(
                         Modifier.fillMaxWidth(),
                         singleLine = true,
                         label = { Text(field.label + if (field.required) " *" else "") },
-                        supportingText = { if (field.hint.isNotBlank()) Text(field.hint) }
+                        supportingText = { if (field.hint.isNotBlank()) Text(field.hint) },
+                        visualTransformation = if (field.isPassword && !shown)
+                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                        else androidx.compose.ui.text.input.VisualTransformation.None,
+                        trailingIcon = if (field.isPassword) {
+                            {
+                                Text(
+                                    if (shown) "Tutup" else "Lihat",
+                                    fontWeight = FontWeight.Bold, fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .clickable { shown = !shown }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        } else null
                     )
                     if (field.options.isNotEmpty()) {
                         Spacer(Modifier.height(6.dp))

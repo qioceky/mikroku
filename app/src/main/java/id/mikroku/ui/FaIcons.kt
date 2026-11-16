@@ -50,6 +50,8 @@ object Fa {
     const val FLOPPY = ""
     const val ARROW_LEFT = ""
     const val ROTATE_RIGHT = ""
+    const val USER = ""
+    const val LOCK = ""
 }
 
 private object FaTypeface {

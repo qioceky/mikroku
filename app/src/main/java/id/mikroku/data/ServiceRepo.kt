@@ -17,6 +17,8 @@ data class HotspotServerEntry(
 data class HotspotUserEntry(
     val id: String,
     val name: String,
+    /** Password dibaca dari router agar tampil di form edit (permintaan user). */
+    val password: String,
     val profile: String,
     val uptime: String,
     val bytesIn: Long,
@@ -39,6 +41,8 @@ data class HotspotActiveEntry(
 data class PppSecretEntry(
     val id: String,
     val name: String,
+    /** Password dibaca dari router agar tampil di form edit (permintaan user). */
+    val password: String,
     val service: String,
     val profile: String,
     val remoteAddress: String,
@@ -105,6 +109,7 @@ object ServiceRepo {
                 HotspotUserEntry(
                     id = r[".id"] ?: r["name"] ?: "",
                     name = r["name"] ?: "-",
+                    password = r["password"] ?: "",
                     profile = r["profile"] ?: "",
                     uptime = r["uptime"] ?: "",
                     bytesIn = r["bytes-in"]?.toLongOrNull() ?: 0L,
@@ -156,11 +161,11 @@ object ServiceRepo {
 
     suspend fun fetchPppSecrets(client: MikrotikClient): List<PppSecretEntry> =
         withContext(Dispatchers.IO) { synchronized(client) {
-            // Password sengaja TIDAK dibaca/ditampilkan.
             client.run("/ppp/secret/print").map { r ->
                 PppSecretEntry(
                     id = r[".id"] ?: r["name"] ?: "",
                     name = r["name"] ?: "-",
+                    password = r["password"] ?: "",
                     service = r["service"] ?: "",
                     profile = r["profile"] ?: "",
                     remoteAddress = r["remote-address"] ?: "",
