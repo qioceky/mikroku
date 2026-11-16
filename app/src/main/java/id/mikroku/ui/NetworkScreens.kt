@@ -92,44 +92,48 @@ private fun MenuCard(item: MenuItem, modifier: Modifier = Modifier, onOpen: (Str
 }
 
 /** Menu fitur jaringan (tab Menu di layar router) — berkelompok + pencarian. */
+/**
+ * Bilah pencarian tab Menu — dirender oleh RouterDetailScreen di AREA
+ * HEADER yang diam (satu paket dengan header router), bukan di dalam
+ * daftar yang bisa di-scroll, supaya posisinya tidak pernah berpindah.
+ */
 @Composable
-fun NetworkMenuGrid(onOpen: (String) -> Unit) {
-    var query by remember { mutableStateOf("") }
+fun MenuSearchBar(query: String, onQuery: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().background(Paper)) {
+        androidx.compose.material3.OutlinedTextField(
+            query, onQuery,
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("Cari fitur…") },
+            placeholder = { Text("mis. voucher, backup, firewall") },
+            shape = RoundedCornerShape(12.dp),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Ink,
+                unfocusedBorderColor = Ink.copy(alpha = 0.4f),
+                focusedContainerColor = CardFill,
+                unfocusedContainerColor = CardFill,
+                cursorColor = Ink
+            )
+        )
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().height(2.5.dp).background(Ink))
+        Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+fun NetworkMenuGrid(query: String, onOpen: (String) -> Unit) {
     val searching = query.isNotBlank()
     val flat = menuCategories.flatMap { it.second }
     val shown = if (!searching) emptyList() else flat.filter {
         it.title.contains(query, ignoreCase = true) || it.sub.contains(query, ignoreCase = true)
     }
     Column(Modifier.fillMaxSize()) {
-        // Bilah pencarian MENEMPEL: di luar area scroll, latar PADAT (Paper).
-        // Di bawah garis tinta ada pita padat 12dp yang diam — kartu menu
-        // selalu hilang di belakang pita bersih ini saat scroll (tampilan
-        // seperti posisi paling atas), tidak mepet terpotong di garisnya.
-        Column(Modifier.fillMaxWidth().background(Paper)) {
-            androidx.compose.material3.OutlinedTextField(
-                query, { query = it },
-                Modifier.fillMaxWidth(), singleLine = true,
-                label = { Text("Cari fitur…") },
-                placeholder = { Text("mis. voucher, backup, firewall") },
-                shape = RoundedCornerShape(12.dp),
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Ink,
-                    unfocusedBorderColor = Ink.copy(alpha = 0.4f),
-                    focusedContainerColor = CardFill,
-                    unfocusedContainerColor = CardFill,
-                    cursorColor = Ink
-                )
-            )
-            Spacer(Modifier.height(10.dp))
-            Box(Modifier.fillMaxWidth().height(2.5.dp).background(Ink))
-            Spacer(Modifier.height(12.dp))
-        }
         if (searching) {
             if (shown.isEmpty()) {
                 Text("Tidak ada fitur yang cocok dengan \"$query\".", color = Muted)
             } else {
                 LazyColumn(
-                    Modifier.weight(1f),
+                    Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
                 ) {
@@ -144,7 +148,7 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
             }
         } else {
             LazyColumn(
-                Modifier.weight(1f),
+                Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
             ) {

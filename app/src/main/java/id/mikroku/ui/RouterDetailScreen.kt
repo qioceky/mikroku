@@ -63,6 +63,7 @@ fun RouterDetailScreen(
     var connectAttempt by remember { mutableStateOf(0) }
     var tab by remember { mutableStateOf(0) } // 0 dashboard, 1 interface, 2 menu
     var section by remember { mutableStateOf<String?>(null) } // sub-layar dari menu
+    var menuQuery by remember { mutableStateOf("") } // kata kunci Cari fitur (state di header)
 
     LaunchedEffect(profile.id, connectAttempt) {
         connectError = null
@@ -111,10 +112,16 @@ fun RouterDetailScreen(
             }
             !connected -> Text("Menyambungkan ke ${profile.host}…", fontWeight = FontWeight.Bold)
             else -> {
-                Box(Modifier.fillMaxSize()) {
-                    // Tanpa pita padding: konten mengalir DI BELAKANG navbar
-                    // mengambang (sekeliling pil transparan); ruang aman untuk
-                    // item terakhir diatur dari contentPadding tiap daftar.
+                Column(Modifier.fillMaxSize()) {
+                    // Kolom pencarian tab Menu tinggal di AREA HEADER yang diam
+                    // ini — di luar konten tab yang bergeser & beranimasi —
+                    // jadi posisinya menempel, tidak pernah ikut scroll.
+                    if (tab == 2) {
+                        MenuSearchBar(menuQuery) { menuQuery = it }
+                    }
+                    Box(Modifier.weight(1f)) {
+                    // Konten mengalir DI BELAKANG navbar mengambang (sekeliling
+                    // pil transparan); ruang aman item terakhir dari contentPadding.
                     Box(Modifier.fillMaxSize()) {
                         // Pindah tab dianimasikan: konten baru geser + pudar masuk.
                         AnimatedContent(
@@ -128,7 +135,7 @@ fun RouterDetailScreen(
                             when (t) {
                                 0 -> DashboardTab(manager, profile)
                                 1 -> InterfacesTab(manager)
-                                else -> NetworkMenuGrid { section = it }
+                                else -> NetworkMenuGrid(menuQuery) { section = it }
                             }
                         }
                     }
@@ -136,6 +143,7 @@ fun RouterDetailScreen(
                         tab = tab,
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp)
                     ) { tab = it }
+                    }
                 }
             }
         }
