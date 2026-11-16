@@ -1,5 +1,9 @@
 package id.mikroku.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -59,7 +64,7 @@ fun KindChips(
             Box(
                 Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (selected == k) MikroYellow else Color.White)
+                    .background(if (selected == k) MikroYellow else CardFill)
                     .border(2.dp, Ink, RoundedCornerShape(8.dp))
                     .clickable { onSelect(k) }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -196,11 +201,12 @@ fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
         SectionHeader("Hotspot", onBack) { tick++ }
         Spacer(Modifier.height(10.dp))
         KindChips(
-            listOf("aktif" to "Sesi Aktif", "user" to "User", "server" to "Server"),
+            listOf("aktif" to "Sesi Aktif", "user" to "User", "server" to "Server", "voucher" to "Voucher"),
             kind
         ) { kind = it }
         Spacer(Modifier.height(10.dp))
         when (kind) {
+            "voucher" -> VoucherSection(manager)
             "server" -> PollingCards(
                 manager = manager, resetKey = "hs-server", tick = tick, onChanged = { tick++ },
                 fetch = { ServiceRepo.fetchHotspotServers(it) },
@@ -224,7 +230,7 @@ fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
                 }
             }
             "user" -> Column {
-                NeoButton("+ Tambah User", fill = Color.White) { form = hotspotUserForm(null) }
+                NeoButton("+ Tambah User", fill = CardFill) { form = hotspotUserForm(null) }
                 Spacer(Modifier.height(10.dp))
                 PollingCards(
                 manager = manager, resetKey = "hs-user", tick = tick, onChanged = { tick++ },
@@ -298,6 +304,167 @@ fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
     }
 }
 
+/**
+ * Generator voucher hotspot: buat banyak user sekaligus dengan kode acak
+ * (username = password = kode), lalu salin/bagikan hasilnya sebagai teks.
+ */
+@Composable
+private fun VoucherSection(manager: SessionManager) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var profiles by remember { mutableStateOf<List<String>>(emptyList()) }
+    var profile by remember { mutableStateOf("") }
+    var countText by remember { mutableStateOf("10") }
+    var lengthText by remember { mutableStateOf("8") }
+    var prefix by remember { mutableStateOf("") }
+    var limitUptime by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<List<String>>(emptyList()) }
+    var msg by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(manager) {
+        try {
+            profiles = manager.run { ServiceRepo.fetchHotspotProfiles(it) }
+            if (profile.isBlank()) profile = profiles.firstOrNull() ?: "default"
+        } catch (e: Exception) {
+            msg = friendlyError(e)
+        }
+    }
+
+    fun generate() {
+        val count = countText.toIntOrNull()?.coerceIn(1, 200) ?: return
+        val len = lengthText.toIntOrNull()?.coerceIn(4, 16) ?: return
+        if (busy) return
+        scope.launch {
+            busy = true
+            msg = null
+            copied = false
+            val chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+            val rnd = java.security.SecureRandom()
+            val created = mutableListOf<String>()
+            var failed = 0
+            try {
+                manager.runNoRetry { client ->
+                    repeat(count) {
+                        val code = prefix.trim() +
+                            (1..len).map { chars[rnd.nextInt(chars.length)] }.joinToString("")
+                        try {
+                            val attrs = mutableMapOf("name" to code, "password" to code)
+                            if (profile.isNotBlank()) attrs["profile"] = profile
+                            if (limitUptime.isNotBlank()) attrs["limit-uptime"] = limitUptime.trim()
+                            attrs["comment"] = "voucher MikroKu"
+                            CrudRepo.add(client, "/ip/hotspot/user", attrs)
+                            created.add(code)
+                        } catch (e: Exception) {
+                            failed++
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                msg = friendlyError(e)
+            }
+            result = created
+            if (failed > 0) {
+                msg = "$failed voucher gagal dibuat (kemungkinan kode kembar) — silakan buat lagi."
+            }
+            busy = false
+        }
+    }
+
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+        Text(
+            "Buat banyak user hotspot sekaligus. Username = password = kode voucher.",
+            color = Muted, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(10.dp))
+        Text("Profil", fontWeight = FontWeight.Black, fontSize = 12.sp)
+        Spacer(Modifier.height(6.dp))
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            for (p in profiles) {
+                val active = profile == p
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (active) MikroYellow else CardFill)
+                        .border(2.dp, Ink, RoundedCornerShape(8.dp))
+                        .clickable { profile = p }
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(p, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(
+                countText, { countText = it.filter { c -> c.isDigit() } },
+                Modifier.weight(1f), singleLine = true,
+                label = { Text("Jumlah (maks 200)") }
+            )
+            OutlinedTextField(
+                lengthText, { lengthText = it.filter { c -> c.isDigit() } },
+                Modifier.weight(1f), singleLine = true,
+                label = { Text("Panjang kode") }
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(
+                prefix, { prefix = it },
+                Modifier.weight(1f), singleLine = true,
+                label = { Text("Awalan (opsional)") },
+                supportingText = { Text("mis. VC-") }
+            )
+            OutlinedTextField(
+                limitUptime, { limitUptime = it },
+                Modifier.weight(1f), singleLine = true,
+                label = { Text("Batas uptime (opsional)") },
+                supportingText = { Text("mis. 1h / 1d; kosong = ikut profil") }
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        NeoButton(if (busy) "Membuat…" else "Buat Voucher", enabled = !busy) { generate() }
+        msg?.let {
+            Spacer(Modifier.height(10.dp))
+            Text(it, color = MikroRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        if (result.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            NeoCard {
+                Text(
+                    "${result.size} voucher dibuat • profil $profile",
+                    fontWeight = FontWeight.Black, fontSize = 13.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    result.joinToString("\n"),
+                    fontFamily = FontFamily.Monospace, fontSize = 13.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NeoButton(if (copied) "Tersalin ✓" else "Salin", Modifier.weight(1f), fill = CardFill) {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("voucher", result.joinToString("\n")))
+                        copied = true
+                    }
+                    NeoButton("Bagikan", Modifier.weight(1f)) {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, result.joinToString("\n"))
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Bagikan voucher"))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
 // ---------------- PPPoE / PPP ----------------
 
 private fun pppSecretForm(existing: PppSecretEntry?): CrudFormSpec {
@@ -345,7 +512,7 @@ fun PppScreen(manager: SessionManager, onBack: () -> Unit) {
         Spacer(Modifier.height(10.dp))
         if (kind == "secret") {
             Column {
-                NeoButton("+ Tambah Secret", fill = Color.White) { form = pppSecretForm(null) }
+                NeoButton("+ Tambah Secret", fill = CardFill) { form = pppSecretForm(null) }
                 Spacer(Modifier.height(10.dp))
                 PollingCards(
                 manager = manager, resetKey = "ppp-secret", tick = tick, onChanged = { tick++ },
@@ -492,7 +659,7 @@ fun QueueScreen(manager: SessionManager, onBack: () -> Unit) {
             }
         } else {
             Column {
-                NeoButton("+ Tambah Queue", fill = Color.White) { form = simpleQueueForm(null) }
+                NeoButton("+ Tambah Queue", fill = CardFill) { form = simpleQueueForm(null) }
                 Spacer(Modifier.height(10.dp))
                 PollingCards(
                 manager = manager, resetKey = "q-simple", tick = tick, onChanged = { tick++ },
@@ -627,7 +794,7 @@ fun ToolsScreen(manager: SessionManager, onBack: () -> Unit) {
                 enabled = !running && target.isNotBlank()
             ) { runTool(true) }
             NeoButton(
-                "Traceroute", Modifier.weight(1f), fill = Color.White,
+                "Traceroute", Modifier.weight(1f), fill = CardFill,
                 enabled = !running && target.isNotBlank()
             ) { runTool(false) }
         }
@@ -677,7 +844,7 @@ fun ToolsScreen(manager: SessionManager, onBack: () -> Unit) {
         ) { btDirection = it }
         Spacer(Modifier.height(10.dp))
         NeoButton(
-            "Mulai Bandwidth Test", fill = Color.White,
+            "Mulai Bandwidth Test", fill = CardFill,
             enabled = !btRunning && btAddress.isNotBlank()
         ) { runBtest() }
         if (btRunning) {

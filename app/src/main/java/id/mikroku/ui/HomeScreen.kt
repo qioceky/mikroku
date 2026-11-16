@@ -194,7 +194,7 @@ private fun HomeTab(text: String, active: Boolean, modifier: Modifier = Modifier
     Box(
         modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(if (active) MikroYellow else Color.White)
+            .background(if (active) MikroYellow else CardFill)
             .border(2.5.dp, Ink, RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(vertical = 9.dp),
@@ -265,7 +265,7 @@ private fun LoginForm(
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            NeoButton("SIMPAN", Modifier.weight(1f), fill = Color.White) { onSave() }
+            NeoButton("SIMPAN", Modifier.weight(1f), fill = CardFill) { onSave() }
             NeoButton("SAMBUNGKAN", Modifier.weight(1f)) { onConnect() }
         }
         Spacer(Modifier.height(14.dp))
@@ -315,7 +315,7 @@ private fun SavedTab(
                 }
             }
             Spacer(Modifier.height(10.dp))
-            NeoButton("Segarkan Status", fill = Color.White) { onRefresh() }
+            NeoButton("Segarkan Status", fill = CardFill) { onRefresh() }
         }
     }
 }
@@ -383,6 +383,6 @@ private fun DiscoveredTab(onPick: (DiscoveredRouter) -> Unit) {
             }
         }
         Spacer(Modifier.height(10.dp))
-        NeoButton(if (scanning) "Memindai…" else "Pindai Ulang", fill = Color.White, enabled = !scanning) { scan() }
+        NeoButton(if (scanning) "Memindai…" else "Pindai Ulang", fill = CardFill, enabled = !scanning) { scan() }
     }
 }

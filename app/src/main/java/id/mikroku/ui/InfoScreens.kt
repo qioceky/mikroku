@@ -3,8 +3,11 @@ package id.mikroku.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,12 +24,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.mikroku.BuildConfig
 import id.mikroku.data.CrashLogger
+import id.mikroku.data.SettingsStore
 
 @Composable
 fun GuideScreen(onBack: () -> Unit) {
@@ -112,9 +117,39 @@ fun AboutScreen(onBack: () -> Unit) {
             Text("Versi ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = Muted, fontSize = 13.sp)
             Spacer(Modifier.height(6.dp))
             Text(
-                "Panel admin MikroTik RouterOS v6 dari HP: monitoring dulu, fitur admin penuh menyusul bertahap. " +
+                "Panel admin MikroTik RouterOS v6 dari HP: monitoring, admin penuh setara WinBox harian, " +
+                    "transfer file SFTP, QuickSet, sampai backup otomatis ke HP. " +
                     "Tanpa iklan, tanpa analytics, tanpa server tengah — HP tersambung langsung ke router kamu dan kredensial tersimpan terenkripsi di HP.",
                 fontSize = 13.sp
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+
+        NeoCard {
+            Text("Tema Aplikasi", fontWeight = FontWeight.Black, fontSize = 15.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((modeValue, label) in listOf(0 to "Sistem", 1 to "Terang", 2 to "Gelap")) {
+                    val active = ThemeState.mode == modeValue
+                    Box(
+                        Modifier
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                            .background(if (active) MikroYellow else CardFill)
+                            .border(2.dp, Ink, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                            .clickable {
+                                ThemeState.mode = modeValue
+                                SettingsStore.setThemeMode(context, modeValue)
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(label, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Mode Gelap nyaman untuk pemakaian malam; Sistem mengikuti tema HP.",
+                color = Muted, fontSize = 12.sp
             )
         }
         Spacer(Modifier.height(12.dp))
@@ -134,7 +169,7 @@ fun AboutScreen(onBack: () -> Unit) {
                         cm.setPrimaryClip(ClipData.newPlainText("MikroKu crash log", log))
                         copied = true
                     }
-                    NeoButton("Hapus Log", Modifier.weight(1f), fill = androidx.compose.ui.graphics.Color.White) {
+                    NeoButton("Hapus Log", Modifier.weight(1f), fill = CardFill) {
                         CrashLogger.clear(context)
                         crashLog = null
                         copied = false

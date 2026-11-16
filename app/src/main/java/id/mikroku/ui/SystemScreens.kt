@@ -1,11 +1,16 @@
 package id.mikroku.ui
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -14,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -37,7 +44,9 @@ import id.mikroku.data.MonitorRepo
 import id.mikroku.data.RouterUserEntry
 import id.mikroku.data.SchedulerEntry
 import id.mikroku.data.ScriptEntry
+import id.mikroku.data.AutoBackupScheduler
 import id.mikroku.data.SessionManager
+import id.mikroku.data.SettingsStore
 import id.mikroku.data.SftpRepo
 import id.mikroku.data.SystemRepo
 import kotlinx.coroutines.launch
@@ -117,7 +126,7 @@ private fun IdentitySection(manager: SessionManager, tick: Int) {
                 Text("Uptime ${d.uptime} • jam ${d.clockTime} ${d.clockDate}", color = Muted, fontSize = 12.sp)
             }
             Spacer(Modifier.height(10.dp))
-            NeoButton("Edit Identitas", fill = Color.White) {
+            NeoButton("Edit Identitas", fill = CardFill) {
                 form = CrudFormSpec(
                     title = "Edit Identitas",
                     isEdit = true,
@@ -140,7 +149,7 @@ private fun IdentitySection(manager: SessionManager, tick: Int) {
                     )
                 }
                 Spacer(Modifier.height(10.dp))
-                NeoButton("Edit Zona Waktu", fill = Color.White) {
+                NeoButton("Edit Zona Waktu", fill = CardFill) {
                     form = CrudFormSpec(
                         title = "Edit Zona Waktu",
                         isEdit = true,
@@ -170,7 +179,7 @@ private fun IdentitySection(manager: SessionManager, tick: Int) {
                     if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(10.dp))
-                NeoButton("Edit NTP", fill = Color.White) {
+                NeoButton("Edit NTP", fill = CardFill) {
                     form = CrudFormSpec(
                         title = "Edit NTP Client",
                         isEdit = true,
@@ -233,7 +242,7 @@ private fun UsersSection(manager: SessionManager, tick: Int, onChanged: () -> Un
         return
     }
     Column {
-        NeoButton("+ Tambah User", fill = Color.White) { form = routerUserForm(null) }
+        NeoButton("+ Tambah User", fill = CardFill) { form = routerUserForm(null) }
         Spacer(Modifier.height(10.dp))
         PollingCards(
             manager = manager, resetKey = "sys-user", tick = tick, onChanged = onChanged,
@@ -332,7 +341,7 @@ private fun SchedulerSection(manager: SessionManager, tick: Int, onChanged: () -
         return
     }
     Column {
-        NeoButton("+ Tambah Scheduler", fill = Color.White) { form = schedulerForm(null) }
+        NeoButton("+ Tambah Scheduler", fill = CardFill) { form = schedulerForm(null) }
         Spacer(Modifier.height(10.dp))
         PollingCards(
             manager = manager, resetKey = "sys-scheduler", tick = tick, onChanged = onChanged,
@@ -419,7 +428,7 @@ private fun ScriptsSection(manager: SessionManager, tick: Int, onChanged: () -> 
         return
     }
     Column {
-        NeoButton("+ Tambah Script", fill = Color.White) { form = scriptForm(null) }
+        NeoButton("+ Tambah Script", fill = CardFill) { form = scriptForm(null) }
         Spacer(Modifier.height(10.dp))
         PollingCards(
             manager = manager, resetKey = "sys-script", tick = tick, onChanged = onChanged,
@@ -625,7 +634,7 @@ private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Un
             )
         }
         Spacer(Modifier.height(10.dp))
-        NeoButton("+ Unggah File ke Router", fill = Color.White, enabled = !busy) {
+        NeoButton("+ Unggah File ke Router", fill = CardFill, enabled = !busy) {
             uploadTarget = null
             uploadLauncher.launch(arrayOf("*/*"))
         }
@@ -740,8 +749,8 @@ private fun BackupSection(manager: SessionManager) {
                 "untuk restore di router yang sama.\n" +
                 "• Export (.rsc) — seluruh settingan sebagai script teks yang bisa dibaca " +
                 "dan dipindah ke router lain; password user & isi file tidak ikut.\n\n" +
-                "File tersimpan di penyimpanan router (lihat sub-menu File). Mengunduh file " +
-                "ke HP belum bisa lewat API — ambil lewat WinBox/WebFig bila perlu memindahkannya.",
+                "File tersimpan di penyimpanan router — unduh ke HP dari sub-menu File " +
+                "(tombol Unduh, lewat SFTP), atau biarkan Backup Otomatis di bawah yang mengunduhnya.",
             color = Muted, fontSize = 12.sp
         )
         Spacer(Modifier.height(12.dp))
@@ -763,12 +772,115 @@ private fun BackupSection(manager: SessionManager) {
         )
         Spacer(Modifier.height(8.dp))
         NeoButton(
-            "Buat Export (.rsc)", fill = Color.White,
+            "Buat Export (.rsc)", fill = CardFill,
             enabled = !busy && exportName.isNotBlank()
         ) { runAction(false) }
         msg?.let {
             Spacer(Modifier.height(12.dp))
             Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(20.dp))
+        AutoBackupCard(manager)
+    }
+}
+
+/**
+ * Kartu Backup Otomatis ke HP: jadwal berkala (WorkManager) yang membuat
+ * backup + export di router ini lalu mengunduhnya ke folder HP via SFTP.
+ */
+@Composable
+private fun AutoBackupCard(manager: SessionManager) {
+    val context = LocalContext.current
+    val profile = remember(manager) { manager.connectionProfile() }
+    var enabled by remember { mutableStateOf(SettingsStore.autoBackupEnabled(context)) }
+    var freqDays by remember { mutableStateOf(SettingsStore.autoBackupFreqDays(context)) }
+    var treeUri by remember { mutableStateOf(SettingsStore.autoBackupTreeUri(context)) }
+    val lastRun = SettingsStore.autoBackupLastRun(context)
+
+    val folderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (e: Exception) {
+                // Izin persisten gagal — URI tetap disimpan; worker akan melaporkan bila tak bisa menulis.
+            }
+            treeUri = uri.toString()
+            if (enabled) {
+                SettingsStore.setAutoBackup(context, true, freqDays, treeUri, profile.id)
+            }
+        }
+    }
+
+    fun apply(newEnabled: Boolean) {
+        SettingsStore.setAutoBackup(context, newEnabled, freqDays, treeUri, profile.id)
+        if (newEnabled) AutoBackupScheduler.schedule(context) else AutoBackupScheduler.cancel(context)
+        enabled = newEnabled
+    }
+
+    NeoCard {
+        Text("Backup Otomatis ke HP", fontWeight = FontWeight.Black, fontSize = 15.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Sesuai jadwal, aplikasi membuat backup + export di router ini lalu mengunduhnya " +
+                "ke folder HP lewat SFTP — aplikasi tidak perlu dibuka. Hasil terakhir tampil di sini.",
+            color = Muted, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Folder tujuan: " + (treeUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "belum dipilih"),
+            fontWeight = FontWeight.Bold, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(6.dp))
+        SmallButton("Pilih Folder di HP") { folderLauncher.launch(null) }
+        Spacer(Modifier.height(12.dp))
+        Text("Frekuensi", fontWeight = FontWeight.Black, fontSize = 12.sp)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((days, label) in listOf(1 to "Harian", 7 to "Mingguan")) {
+                val active = freqDays == days
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (active) MikroYellow else CardFill)
+                        .border(2.dp, Ink, RoundedCornerShape(8.dp))
+                        .clickable {
+                            freqDays = days
+                            if (enabled) {
+                                SettingsStore.setAutoBackup(context, true, days, treeUri, profile.id)
+                                AutoBackupScheduler.schedule(context)
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(label, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                }
+            }
+        }
+        if (profile.password.isBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Password router ini tidak tersimpan di aplikasi — jadwal tidak akan bisa login. " +
+                    "Simpan password lewat tombol Ubah di daftar router.",
+                color = MikroRed, fontSize = 12.sp, fontWeight = FontWeight.Bold
+            )
+        }
+        lastRun?.let {
+            Spacer(Modifier.height(10.dp))
+            Text("Terakhir jalan: $it", color = Muted, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        if (enabled) {
+            NeoButton("Matikan Jadwal", fill = CardFill) { apply(false) }
+        } else {
+            NeoButton(
+                "Aktifkan Jadwal",
+                enabled = treeUri != null && profile.password.isNotBlank()
+            ) { apply(true) }
         }
     }
 }

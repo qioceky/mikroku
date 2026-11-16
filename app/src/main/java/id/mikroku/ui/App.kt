@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import id.mikroku.data.MonitorRepo
 import id.mikroku.data.RouterProfile
 import id.mikroku.data.RouterStore
+import id.mikroku.data.SettingsStore
 import kotlinx.coroutines.launch
 
 sealed interface Screen {
@@ -46,6 +47,18 @@ sealed interface Screen {
 fun MikroKuApp() {
     val context = LocalContext.current
     val store = remember { RouterStore(context) }
+
+    // Tema: pilihan user (Sistem/Terang/Gelap) menentukan palet aktif.
+    LaunchedEffect(Unit) { ThemeState.mode = SettingsStore.themeMode(context) }
+    val themeMode = ThemeState.mode
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    androidx.compose.runtime.SideEffect {
+        mikroDark = when (themeMode) {
+            1 -> false
+            2 -> true
+            else -> systemDark
+        }
+    }
     var routers by remember { mutableStateOf(store.load()) }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     val statuses = remember { mutableStateMapOf<String, Boolean>() }
@@ -150,7 +163,7 @@ fun MikroKuApp() {
 fun SmallHeaderButton(text: String, onClick: () -> Unit) {
     Box(
         Modifier
-            .background(Color.White, RoundedCornerShape(10.dp))
+            .background(CardFill, RoundedCornerShape(10.dp))
             .border(2.dp, Ink, RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 6.dp)

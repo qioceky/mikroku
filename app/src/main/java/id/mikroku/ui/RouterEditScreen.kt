@@ -126,7 +126,7 @@ fun RouterEditScreen(
         Spacer(Modifier.height(12.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            NeoButton(if (testing) "Menguji…" else "Tes Koneksi", Modifier.weight(1f), fill = androidx.compose.ui.graphics.Color.White, enabled = !testing) {
+            NeoButton(if (testing) "Menguji…" else "Tes Koneksi", Modifier.weight(1f), fill = CardFill, enabled = !testing) {
                 val profile = buildProfile()
                 if (profile == null) {
                     status = "Lengkapi nama, host, port, dan username dulu."
@@ -164,7 +164,7 @@ fun RouterEditScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NeoButton("Batal", Modifier.weight(1f), fill = androidx.compose.ui.graphics.Color.White) { confirmDelete = false }
+                    NeoButton("Batal", Modifier.weight(1f), fill = CardFill) { confirmDelete = false }
                     NeoButton("Ya, Hapus", Modifier.weight(1f), fill = MikroRed, textColor = androidx.compose.ui.graphics.Color.White) { onDelete(initial) }
                 }
             }

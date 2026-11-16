@@ -115,6 +115,12 @@ object ServiceRepo {
             }
         } }
 
+    /** Nama-nama profil user hotspot (untuk pilihan di generator voucher). */
+    suspend fun fetchHotspotProfiles(client: MikrotikClient): List<String> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/ip/hotspot/user/profile/print").mapNotNull { it["name"] }
+        } }
+
     suspend fun setHotspotUserDisabled(client: MikrotikClient, userId: String, disabled: Boolean) =
         withContext(Dispatchers.IO) { synchronized(client) {
             client.runCommand(

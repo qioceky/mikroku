@@ -40,46 +40,68 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-/** Menu fitur jaringan (tab Menu di layar router). */
+private data class MenuItem(val key: String, val icon: String, val title: String, val sub: String)
+
+/** Menu fitur jaringan (tab Menu di layar router) — dengan ikon + pencarian. */
 @Composable
 fun NetworkMenuGrid(onOpen: (String) -> Unit) {
     val items = listOf(
-        Triple("quickset", "QuickSet", "Setup cepat AP rumahan: WiFi, DHCP, NAT"),
-        Triple("ip", "Alamat IP", "IP yang terpasang di tiap interface"),
-        Triple("dhcp", "Server DHCP", "Server DHCP + pool alamat"),
-        Triple("lease", "Lease DHCP", "Perangkat yang sedang dapat alamat"),
-        Triple("route", "Routing", "Tabel rute router"),
-        Triple("arp", "Tabel ARP", "Pasangan IP ↔ MAC di jaringan lokal"),
-        Triple("firewall", "Firewall", "Filter, NAT, mangle — lihat + aktif/nonaktif"),
-        Triple("hotspot", "Hotspot", "Server, user, dan sesi aktif"),
-        Triple("pppoe", "PPPoE", "Secret PPP + sesi aktif"),
-        Triple("queue", "Queue", "Simple queue + queue tree"),
-        Triple("tools", "Tools", "Ping & traceroute dari router"),
-        Triple("sistem", "Sistem", "User, scheduler, script, log, file, backup"),
-        Triple("wireless", "Wireless", "SSID, mode, dan perangkat terhubung"),
-        Triple("bridge", "Bridge", "Bridge dan port-portnya"),
-        Triple("vlan", "VLAN", "Interface VLAN 802.1Q"),
-        Triple("dns", "DNS", "Server DNS, entri static, dan cache"),
-        Triple("pool", "IP Pool", "Kumpulan alamat untuk DHCP/hotspot/PPP"),
-        Triple("dhcp-client", "DHCP Client", "IP dari ISP, gateway, dan statusnya"),
-        Triple("service", "IP Service", "Service router: api, winbox, www, ssh"),
-        Triple("neighbor", "Neighbors", "Perangkat MikroTik lain yang terdeteksi"),
-        Triple("konsol", "Konsol API", "Jalankan perintah API mentah")
+        MenuItem("quickset", "⚡", "QuickSet", "Setup cepat AP rumahan: WiFi, DHCP, NAT"),
+        MenuItem("ip", "🌐", "Alamat IP", "IP yang terpasang di tiap interface"),
+        MenuItem("dhcp", "🗂️", "Server DHCP", "Server DHCP + pool alamat"),
+        MenuItem("lease", "🎫", "Lease DHCP", "Perangkat yang sedang dapat alamat"),
+        MenuItem("route", "🗺️", "Routing", "Tabel rute router"),
+        MenuItem("arp", "🔗", "Tabel ARP", "Pasangan IP ↔ MAC di jaringan lokal"),
+        MenuItem("firewall", "🛡️", "Firewall", "Filter, NAT, mangle — lihat + ubah"),
+        MenuItem("addrlist", "📒", "Address List", "Daftar alamat untuk firewall"),
+        MenuItem("hotspot", "📶", "Hotspot", "Server, user, voucher, dan sesi aktif"),
+        MenuItem("pppoe", "🔌", "PPPoE", "Secret PPP + sesi aktif"),
+        MenuItem("queue", "🚦", "Queue", "Simple queue + queue tree"),
+        MenuItem("tools", "🛠️", "Tools", "Ping, traceroute, bandwidth test"),
+        MenuItem("sistem", "⚙️", "Sistem", "User, scheduler, script, log, file, backup"),
+        MenuItem("wireless", "📡", "Wireless", "SSID, mode, dan perangkat terhubung"),
+        MenuItem("bridge", "🌉", "Bridge", "Bridge dan port-portnya"),
+        MenuItem("vlan", "🏷️", "VLAN", "Interface VLAN 802.1Q"),
+        MenuItem("dns", "📖", "DNS", "Server DNS, entri static, dan cache"),
+        MenuItem("pool", "🎱", "IP Pool", "Kumpulan alamat untuk DHCP/hotspot/PPP"),
+        MenuItem("dhcp-client", "📥", "DHCP Client", "IP dari ISP, gateway, dan statusnya"),
+        MenuItem("service", "🛎️", "IP Service", "Service router: api, winbox, www, ssh"),
+        MenuItem("neighbor", "👀", "Neighbors", "Perangkat MikroTik lain yang terdeteksi"),
+        MenuItem("konsol", "💻", "Konsol API", "Jalankan perintah API mentah")
     )
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(items.chunked(2)) { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                for ((key, title, sub) in pair) {
-                    NeoCard(Modifier.weight(1f), onClick = { onOpen(key) }) {
-                        Text(title, fontWeight = FontWeight.Black, fontSize = 15.sp)
-                        Spacer(Modifier.height(4.dp))
-                        Text(sub, color = Muted, fontSize = 11.sp)
+    var query by remember { mutableStateOf("") }
+    val shown = if (query.isBlank()) items else items.filter {
+        it.title.contains(query, ignoreCase = true) || it.sub.contains(query, ignoreCase = true)
+    }
+    Column {
+        androidx.compose.material3.OutlinedTextField(
+            query, { query = it },
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("Cari fitur…") },
+            placeholder = { Text("mis. voucher, backup, firewall") }
+        )
+        Spacer(Modifier.height(12.dp))
+        if (shown.isEmpty()) {
+            Text("Tidak ada fitur yang cocok dengan \"$query\".", color = Muted)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(shown.chunked(2)) { pair ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        for (item in pair) {
+                            NeoCard(Modifier.weight(1f), onClick = { onOpen(item.key) }) {
+                                Text(item.icon, fontSize = 20.sp)
+                                Spacer(Modifier.height(4.dp))
+                                Text(item.title, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                                Spacer(Modifier.height(2.dp))
+                                Text(item.sub, color = Muted, fontSize = 11.sp)
+                            }
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                item { Spacer(Modifier.height(8.dp)) }
             }
         }
-        item { Spacer(Modifier.height(8.dp)) }
     }
 }
 
@@ -93,6 +115,7 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "route" -> RouteScreen(manager, onBack)
         "arp" -> ArpScreen(manager, onBack)
         "firewall" -> FirewallScreen(manager, onBack)
+        "addrlist" -> AddressListScreen(manager, onBack)
         "hotspot" -> HotspotScreen(manager, onBack)
         "pppoe" -> PppScreen(manager, onBack)
         "queue" -> QueueScreen(manager, onBack)
@@ -217,7 +240,7 @@ private fun IpAddressScreen(manager: SessionManager, onBack: () -> Unit) {
     Column {
         SectionHeader("Alamat IP", onBack) { tick++ }
         Spacer(Modifier.height(10.dp))
-        NeoButton("+ Tambah Alamat IP", fill = Color.White) { form = ipAddressForm(null) }
+        NeoButton("+ Tambah Alamat IP", fill = CardFill) { form = ipAddressForm(null) }
         Spacer(Modifier.height(10.dp))
         PollingCards(
             manager = manager, resetKey = "ip", tick = tick, onChanged = { tick++ },
@@ -328,31 +351,138 @@ private fun DhcpLeaseScreen(manager: SessionManager, onBack: () -> Unit) {
     }
 }
 
+private fun routeForm(existing: id.mikroku.data.RouteEntry?): CrudFormSpec {
+    val edit = existing != null
+    return CrudFormSpec(
+        title = if (edit) "Edit Rute" else "Tambah Rute Statis",
+        isEdit = edit,
+        fields = listOf(
+            CrudField("dst-address", "Jaringan tujuan", existing?.dstAddress ?: "",
+                hint = "mis. 0.0.0.0/0 atau 10.10.10.0/24", required = true),
+            CrudField("gateway", "Gateway", existing?.gateway ?: "",
+                hint = "IP gateway atau nama interface", required = true),
+            CrudField("distance", "Distance", existing?.distance ?: "",
+                hint = "kosong = 1"),
+            CrudField("comment", "Komentar", existing?.comment ?: "")
+        ),
+        submit = { client, v ->
+            if (edit) {
+                val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "comment" }
+                CrudRepo.set(client, "/ip/route", existing!!.id, attrs)
+            } else {
+                CrudRepo.add(client, "/ip/route", v.filterValues { it.isNotBlank() })
+            }
+        }
+    )
+}
+
 @Composable
 private fun RouteScreen(manager: SessionManager, onBack: () -> Unit) {
-    PollingSection(
-        title = "Routing",
-        manager = manager,
-        onBack = onBack,
-        fetch = { NetworkRepo.fetchRoutes(it) },
-        emptyText = "Tabel rute kosong.",
-        itemKey = { it.id }
-    ) { e ->
-        NeoCard {
-            Row {
-                StatusDot(e.active && !e.disabled, Modifier.padding(top = 4.dp, end = 7.dp))
-                Column {
-                    Text(e.dstAddress, fontWeight = FontWeight.Black, fontSize = 15.sp)
-                    if (e.gateway.isNotBlank()) {
-                        Text("via ${e.gateway}", color = Muted, fontSize = 12.sp)
+    var tick by remember { mutableStateOf(0) }
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; tick++ }, onCancel = { form = null })
+        return
+    }
+    Column {
+        SectionHeader("Routing", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        NeoButton("+ Tambah Rute", fill = CardFill) { form = routeForm(null) }
+        Spacer(Modifier.height(10.dp))
+        PollingCards(
+            manager = manager, resetKey = "route", tick = tick, onChanged = { tick++ },
+            fetch = { NetworkRepo.fetchRoutes(it) },
+            emptyText = "Tabel rute kosong.",
+            itemKey = { it.id }
+        ) { e, onChanged ->
+            NeoCard {
+                Row {
+                    StatusDot(e.active && !e.disabled, Modifier.padding(top = 4.dp, end = 7.dp))
+                    Column {
+                        Text(e.dstAddress, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                        if (e.gateway.isNotBlank()) {
+                            Text("via ${e.gateway}", color = Muted, fontSize = 12.sp)
+                        }
+                        val meta = buildString {
+                            if (e.distance.isNotBlank()) append("distance ${e.distance}")
+                            if (e.active) append(" • aktif")
+                        }
+                        if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 11.sp)
+                        StateTags("dinamis" to e.dynamic, "nonaktif" to e.disabled)
+                        if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
                     }
-                    val meta = buildString {
-                        if (e.distance.isNotBlank()) append("distance ${e.distance}")
-                        if (e.active) append(" • aktif")
+                }
+                if (!e.dynamic) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallButton("Edit") { form = routeForm(e) }
+                        ConfirmActionButton("Hapus", run = {
+                            manager.runNoRetry { CrudRepo.remove(it, "/ip/route", e.id) }
+                        }, onDone = onChanged)
                     }
-                    if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 11.sp)
-                    StateTags("dinamis" to e.dynamic, "nonaktif" to e.disabled)
-                    if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
+private fun addressListForm(existing: id.mikroku.data.AddressListEntry?): CrudFormSpec {
+    val edit = existing != null
+    return CrudFormSpec(
+        title = if (edit) "Edit Address List" else "Tambah Address List",
+        isEdit = edit,
+        fields = listOf(
+            CrudField("list", "Nama list", existing?.list ?: "",
+                hint = "mis. blokir, lokal, vpn", required = true),
+            CrudField("address", "Alamat IP / jaringan", existing?.address ?: "",
+                hint = "mis. 192.168.88.10 atau 10.0.0.0/8", required = true),
+            CrudField("comment", "Komentar", existing?.comment ?: "")
+        ),
+        submit = { client, v ->
+            if (edit) {
+                val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "comment" }
+                CrudRepo.set(client, "/ip/firewall/address-list", existing!!.id, attrs)
+            } else {
+                CrudRepo.add(client, "/ip/firewall/address-list", v.filterValues { it.isNotBlank() })
+            }
+        }
+    )
+}
+
+@Composable
+private fun AddressListScreen(manager: SessionManager, onBack: () -> Unit) {
+    var tick by remember { mutableStateOf(0) }
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; tick++ }, onCancel = { form = null })
+        return
+    }
+    Column {
+        SectionHeader("Address List", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        NeoButton("+ Tambah Entri", fill = CardFill) { form = addressListForm(null) }
+        Spacer(Modifier.height(10.dp))
+        PollingCards(
+            manager = manager, resetKey = "addrlist", tick = tick, onChanged = { tick++ },
+            fetch = { NetworkRepo.fetchAddressList(it) },
+            emptyText = "Address list kosong.",
+            itemKey = { it.id }
+        ) { e, onChanged ->
+            NeoCard {
+                Text(e.address, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                Text("list: ${e.list}", color = Muted, fontSize = 12.sp)
+                StateTags("nonaktif" to e.disabled, "dinamis" to e.dynamic)
+                if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
+                if (!e.dynamic) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallButton("Edit") { form = addressListForm(e) }
+                        ConfirmActionButton("Hapus", run = {
+                            manager.runNoRetry { CrudRepo.remove(it, "/ip/firewall/address-list", e.id) }
+                        }, onDone = onChanged)
+                    }
                 }
             }
         }
@@ -386,7 +516,7 @@ private fun ArpScreen(manager: SessionManager, onBack: () -> Unit) {
 @Composable
 fun SmallButton(
     text: String,
-    fill: Color = Color.White,
+    fill: Color = CardFill,
     textColor: Color = Ink,
     onClick: () -> Unit
 ) {
@@ -580,7 +710,7 @@ private fun FirewallScreen(manager: SessionManager, onBack: () -> Unit) {
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (kind == k) MikroYellow else Color.White)
+                        .background(if (kind == k) MikroYellow else CardFill)
                         .border(2.dp, Ink, RoundedCornerShape(8.dp))
                         .clickable {
                             kind = k
@@ -595,7 +725,7 @@ private fun FirewallScreen(manager: SessionManager, onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(10.dp))
-        NeoButton("+ Tambah Rule", fill = Color.White) { form = firewallForm(kind, null) }
+        NeoButton("+ Tambah Rule", fill = CardFill) { form = firewallForm(kind, null) }
         Spacer(Modifier.height(10.dp))
         actionMsg?.let {
             Text(it, fontSize = 12.sp, fontWeight = FontWeight.Bold)

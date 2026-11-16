@@ -90,7 +90,7 @@ fun RouterDetailScreen(
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                NeoButton("Coba Lagi", fill = Color.White) { connectAttempt++ }
+                NeoButton("Coba Lagi", fill = CardFill) { connectAttempt++ }
             }
             !connected -> Text("Menyambungkan ke ${profile.host}…", fontWeight = FontWeight.Bold)
             else -> {
@@ -120,7 +120,7 @@ private fun TabChip(text: String, active: Boolean, modifier: Modifier = Modifier
     Box(
         modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(if (active) MikroYellow else Color.White)
+            .background(if (active) MikroYellow else CardFill)
             .border(2.5.dp, Ink, RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(vertical = 8.dp),
@@ -136,12 +136,23 @@ private fun DashboardTab(manager: SessionManager, profile: RouterProfile) {
     var error by remember { mutableStateOf<String?>(null) }
     var confirmReboot by remember { mutableStateOf(false) }
     var rebootMsg by remember { mutableStateOf<String?>(null) }
+    val cpuHist = remember { mutableStateListOf<Float>() }
+    val ramHist = remember { mutableStateListOf<Float>() }
 
     LaunchedEffect(manager) {
         while (isActive) {
             try {
-                data = manager.run { MonitorRepo.fetchDashboard(it) }
+                val d = manager.run { MonitorRepo.fetchDashboard(it) }
+                data = d
                 error = null
+                d.cpuLoad?.let { v ->
+                    cpuHist.add(v.toFloat())
+                    if (cpuHist.size > 30) cpuHist.removeAt(0)
+                }
+                if (d.freeMemory != null && d.totalMemory != null && d.totalMemory > 0) {
+                    ramHist.add((100 - d.freeMemory * 100 / d.totalMemory).toFloat())
+                    if (ramHist.size > 30) ramHist.removeAt(0)
+                }
             } catch (e: Exception) {
                 error = friendlyError(e)
             }
@@ -205,6 +216,25 @@ private fun DashboardTab(manager: SessionManager, profile: RouterProfile) {
                     }
                 }
             }
+            if (cpuHist.size > 1 || ramHist.size > 1) {
+                item {
+                    NeoCard {
+                        Text("AKTIVITAS • 30 SAMPEL TERAKHIR", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Muted)
+                        if (cpuHist.size > 1) {
+                            Spacer(Modifier.height(8.dp))
+                            Text("CPU ${d.cpuLoad?.let { "$it%" } ?: ""}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MikroGreen)
+                            Sparkline(cpuHist.toList(), MikroGreen, maxValue = 100f)
+                        }
+                        if (ramHist.size > 1) {
+                            Spacer(Modifier.height(8.dp))
+                            val usedPct = if (d.freeMemory != null && d.totalMemory != null && d.totalMemory > 0)
+                                (100 - d.freeMemory * 100 / d.totalMemory).toInt() else null
+                            Text("RAM ${usedPct?.let { "$it%" } ?: ""}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB47600))
+                            Sparkline(ramHist.toList(), Color(0xFFB47600), maxValue = 100f)
+                        }
+                    }
+                }
+            }
             if (d.temperature != null || d.voltage != null) {
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -234,7 +264,7 @@ private fun DashboardTab(manager: SessionManager, profile: RouterProfile) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NeoButton("Batal", Modifier.weight(1f), fill = Color.White) { confirmReboot = false }
+                    NeoButton("Batal", Modifier.weight(1f), fill = CardFill) { confirmReboot = false }
                     NeoButton("Ya, Reboot", Modifier.weight(1f), fill = MikroRed, textColor = Color.White) {
                         confirmReboot = false
                         rebootMsg = "Perintah reboot terkirim…"
@@ -267,7 +297,7 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
                     .height(10.dp)
                     .clip(RoundedCornerShape(99.dp))
                     .border(2.dp, Ink, RoundedCornerShape(99.dp))
-                    .background(Color.White)
+                    .background(CardFill)
             ) {
                 val barColor = when {
                     percent >= 85 -> MikroRed
@@ -293,6 +323,7 @@ private fun InterfacesTab(manager: SessionManager) {
     val prevTime = remember { mutableStateOf(0L) }
     val rates = remember { mutableStateMapOf<String, Pair<Double, Double>>() }
     val history = remember { mutableStateListOf<Double>() } // total rx rate untuk spark
+    val histMap = remember { mutableStateMapOf<String, List<Float>>() } // trafik per interface
 
     LaunchedEffect(manager) {
         while (isActive) {
@@ -311,6 +342,8 @@ private fun InterfacesTab(manager: SessionManager) {
                                 val txRate = (f.txBytes - p.second).coerceAtLeast(0) / dt
                                 rates[f.name] = rxRate to txRate
                                 if (f.running) totalRx += rxRate
+                                val h = (histMap[f.name] ?: emptyList()) + (rxRate + txRate).toFloat()
+                                histMap[f.name] = if (h.size > 20) h.drop(h.size - 20) else h
                             }
                         }
                         history.add(totalRx)
@@ -363,6 +396,12 @@ private fun InterfacesTab(manager: SessionManager) {
                             Text("↓ ${formatRate(r?.first ?: 0.0)}", color = MikroGreen, fontWeight = FontWeight.Black, fontSize = 13.sp)
                             Text("↑ ${formatRate(r?.second ?: 0.0)}", color = Color(0xFFB47600), fontWeight = FontWeight.Black, fontSize = 13.sp)
                         }
+                    }
+                    val h = histMap[f.name]
+                    if (h != null && h.size > 1) {
+                        Spacer(Modifier.height(8.dp))
+                        Sparkline(h, MikroGreen)
+                        Text("grafik trafik ↓+↑ • 20 sampel terakhir", color = Muted, fontSize = 10.sp)
                     }
                 }
             }

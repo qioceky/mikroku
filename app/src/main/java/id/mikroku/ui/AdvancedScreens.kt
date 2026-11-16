@@ -139,7 +139,7 @@ fun WirelessScreen(manager: SessionManager, onBack: () -> Unit) {
                 }
             }
         } else {
-            NeoButton("+ Tambah Profil", fill = Color.White) { form = securityProfileForm(null) }
+            NeoButton("+ Tambah Profil", fill = CardFill) { form = securityProfileForm(null) }
             Spacer(Modifier.height(10.dp))
             PollingCards(
                 manager = manager, resetKey = "wl-sec", tick = tick, onChanged = { tick++ },
@@ -271,7 +271,7 @@ fun BridgeScreen(manager: SessionManager, onBack: () -> Unit) {
         KindChips(listOf("bridge" to "Bridge", "port" to "Port"), kind) { kind = it }
         Spacer(Modifier.height(10.dp))
         if (kind == "bridge") {
-            NeoButton("+ Tambah Bridge", fill = Color.White) { form = bridgeForm(null) }
+            NeoButton("+ Tambah Bridge", fill = CardFill) { form = bridgeForm(null) }
             Spacer(Modifier.height(10.dp))
             PollingCards(
                 manager = manager, resetKey = "br", tick = tick, onChanged = { tick++ },
@@ -309,7 +309,7 @@ fun BridgeScreen(manager: SessionManager, onBack: () -> Unit) {
                 }
             }
         } else {
-            NeoButton("+ Tambah Port", fill = Color.White) { form = bridgePortForm(null) }
+            NeoButton("+ Tambah Port", fill = CardFill) { form = bridgePortForm(null) }
             Spacer(Modifier.height(10.dp))
             PollingCards(
                 manager = manager, resetKey = "br-port", tick = tick, onChanged = { tick++ },
@@ -389,7 +389,7 @@ fun VlanScreen(manager: SessionManager, onBack: () -> Unit) {
     Column {
         SectionHeader("VLAN", onBack) { tick++ }
         Spacer(Modifier.height(10.dp))
-        NeoButton("+ Tambah VLAN", fill = Color.White) { form = vlanForm(null) }
+        NeoButton("+ Tambah VLAN", fill = CardFill) { form = vlanForm(null) }
         Spacer(Modifier.height(10.dp))
         PollingCards(
             manager = manager, resetKey = "vlan", tick = tick, onChanged = { tick++ },
@@ -557,7 +557,7 @@ fun PoolScreen(manager: SessionManager, onBack: () -> Unit) {
     Column {
         SectionHeader("IP Pool", onBack) { tick++ }
         Spacer(Modifier.height(10.dp))
-        NeoButton("+ Tambah Pool", fill = Color.White) { form = poolForm(null) }
+        NeoButton("+ Tambah Pool", fill = CardFill) { form = poolForm(null) }
         Spacer(Modifier.height(10.dp))
         PollingCards(
             manager = manager, resetKey = "pool", tick = tick, onChanged = { tick++ },

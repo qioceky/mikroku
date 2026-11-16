@@ -50,6 +50,15 @@ data class RouteEntry(
     val comment: String
 )
 
+data class AddressListEntry(
+    val id: String,
+    val list: String,
+    val address: String,
+    val comment: String,
+    val disabled: Boolean,
+    val dynamic: Boolean
+)
+
 data class ArpEntry(
     val id: String,
     val address: String,
@@ -170,6 +179,20 @@ object NetworkRepo {
                     dynamic = r["dynamic"] == "true",
                     disabled = r["disabled"] == "true",
                     comment = r["comment"] ?: ""
+                )
+            }
+        } }
+
+    suspend fun fetchAddressList(client: MikrotikClient): List<AddressListEntry> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/ip/firewall/address-list/print").map { r ->
+                AddressListEntry(
+                    id = r[".id"] ?: (r["address"] ?: ""),
+                    list = r["list"] ?: "",
+                    address = r["address"] ?: "-",
+                    comment = r["comment"] ?: "",
+                    disabled = r["disabled"] == "true",
+                    dynamic = r["dynamic"] == "true"
                 )
             }
         } }

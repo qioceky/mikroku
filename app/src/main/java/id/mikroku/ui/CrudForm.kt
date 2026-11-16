@@ -138,7 +138,7 @@ fun CrudFormScreen(
                                 Box(
                                     Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (active) MikroYellow else Color.White)
+                                        .background(if (active) MikroYellow else CardFill)
                                         .border(2.dp, Ink, RoundedCornerShape(8.dp))
                                         .clickable { values[field.key] = opt }
                                         .padding(horizontal = 10.dp, vertical = 5.dp)
@@ -156,7 +156,7 @@ fun CrudFormScreen(
                     Spacer(Modifier.height(8.dp))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NeoButton("Batal", Modifier.weight(1f), fill = Color.White) { onCancel() }
+                    NeoButton("Batal", Modifier.weight(1f), fill = CardFill) { onCancel() }
                     NeoButton(
                         if (saving) "Menyimpan…" else "Simpan",
                         Modifier.weight(1f),
