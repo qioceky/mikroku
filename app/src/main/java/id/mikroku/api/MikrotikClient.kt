@@ -120,6 +120,7 @@ class MikrotikClient private constructor(
 
     private fun readReply(): Reply {
         val rows = mutableListOf<Map<String, String>>()
+        var trap: ApiTrapException? = null
         while (true) {
             val sentence = codec.readSentence()
             if (sentence.isEmpty()) throw ApiException("Koneksi ditutup router")
@@ -127,11 +128,19 @@ class MikrotikClient private constructor(
             val attrs = parseAttrs(sentence.drop(1))
             when (type) {
                 "!re" -> rows.add(attrs)
-                "!done" -> return Reply(rows, true, attrs)
-                "!trap" -> throw ApiTrapException(
-                    attrs["message"] ?: "Perintah ditolak router",
-                    attrs["category"]
-                )
+                "!done" -> {
+                    // RouterOS selalu menutup balasan !trap dengan !done.
+                    // Trap baru dilempar SETELAH !done terbaca, supaya aliran
+                    // balasan tetap sinkron untuk perintah berikutnya.
+                    trap?.let { throw it }
+                    return Reply(rows, true, attrs)
+                }
+                "!trap" -> if (trap == null) {
+                    trap = ApiTrapException(
+                        attrs["message"] ?: "Perintah ditolak router",
+                        attrs["category"]
+                    )
+                }
                 "!fatal" -> throw ApiException(attrs["message"] ?: "Koneksi ditolak router (!fatal) — periksa user/password dan policy API")
                 else -> { /* abaikan sentence tak dikenal */ }
             }

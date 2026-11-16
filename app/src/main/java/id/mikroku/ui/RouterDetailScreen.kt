@@ -32,11 +32,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import id.mikroku.api.ApiTrapException
 import id.mikroku.data.DashboardData
 import id.mikroku.data.InterfaceData
 import id.mikroku.data.MonitorRepo
 import id.mikroku.data.RouterProfile
-import id.mikroku.data.RouterSession
+import id.mikroku.data.SessionManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -47,23 +48,24 @@ fun RouterDetailScreen(
     onBack: () -> Unit,
     onFingerprintLearned: (String) -> Unit
 ) {
-    var session by remember { mutableStateOf<RouterSession?>(null) }
+    val manager = remember(profile.id) { SessionManager(profile, onFingerprintLearned) }
+    var connected by remember { mutableStateOf(false) }
     var connectError by remember { mutableStateOf<String?>(null) }
+    var connectAttempt by remember { mutableStateOf(0) }
     var tab by remember { mutableStateOf(0) } // 0 dashboard, 1 interface
 
-    LaunchedEffect(profile.id) {
+    LaunchedEffect(profile.id, connectAttempt) {
         connectError = null
+        connected = false
         try {
-            val s = MonitorRepo.openSession(profile)
-            session = s
-            val fp = s.certFingerprint
-            if (fp != null && profile.certFingerprint == null) onFingerprintLearned(fp)
+            manager.client()
+            connected = true
         } catch (e: Exception) {
-            connectError = e.message ?: "Tidak bisa tersambung"
+            connectError = friendlyError(e)
         }
     }
-    DisposableEffect(Unit) {
-        onDispose { session?.close() }
+    DisposableEffect(manager) {
+        onDispose { manager.close() }
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
@@ -74,7 +76,6 @@ fun RouterDetailScreen(
         }
         Spacer(Modifier.height(12.dp))
 
-        val s = session
         when {
             connectError != null -> {
                 NeoCard(fill = MikroRed) {
@@ -87,16 +88,18 @@ fun RouterDetailScreen(
                         color = Color.White, fontSize = 12.sp
                     )
                 }
+                Spacer(Modifier.height(12.dp))
+                NeoButton("Coba Lagi", fill = Color.White) { connectAttempt++ }
             }
-            s == null -> Text("Menyambungkan ke ${profile.host}…", fontWeight = FontWeight.Bold)
+            !connected -> Text("Menyambungkan ke ${profile.host}…", fontWeight = FontWeight.Bold)
             else -> {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     TabChip("Dashboard", tab == 0, Modifier.weight(1f)) { tab = 0 }
                     TabChip("Interface", tab == 1, Modifier.weight(1f)) { tab = 1 }
                 }
                 Spacer(Modifier.height(12.dp))
-                if (tab == 0) DashboardTab(s, profile)
-                else InterfacesTab(s)
+                if (tab == 0) DashboardTab(manager, profile)
+                else InterfacesTab(manager)
             }
         }
     }
@@ -118,25 +121,33 @@ private fun TabChip(text: String, active: Boolean, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun DashboardTab(session: RouterSession, profile: RouterProfile) {
+private fun DashboardTab(manager: SessionManager, profile: RouterProfile) {
     var data by remember { mutableStateOf<DashboardData?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmReboot by remember { mutableStateOf(false) }
     var rebootMsg by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(session) {
+    LaunchedEffect(manager) {
         while (isActive) {
             try {
-                data = MonitorRepo.fetchDashboard(session.client)
+                data = manager.run { MonitorRepo.fetchDashboard(it) }
                 error = null
             } catch (e: Exception) {
-                error = e.message
+                error = friendlyError(e)
             }
             delay(5_000)
         }
     }
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (data != null && error != null) {
+            item {
+                Text(
+                    "⚠ $error — menyambung ulang otomatis…",
+                    color = MikroRed, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                )
+            }
+        }
         item {
             val d = data
             if (d == null) {
@@ -219,9 +230,10 @@ private fun DashboardTab(session: RouterSession, profile: RouterProfile) {
                         rebootMsg = "Perintah reboot terkirim…"
                         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                             try {
-                                MonitorRepo.reboot(session.client)
+                                MonitorRepo.reboot(manager.client())
                             } catch (e: Exception) {
                                 // Router menutup koneksi saat reboot — itu tanda berhasil, bukan gagal.
+                                // Polling berikutnya menyambung ulang sendiri setelah router menyala.
                             }
                         }
                     }
@@ -264,7 +276,7 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun InterfacesTab(session: RouterSession) {
+private fun InterfacesTab(manager: SessionManager) {
     var ifaces by remember { mutableStateOf<List<InterfaceData>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     val prev = remember { mutableStateMapOf<String, Pair<Long, Long>>() } // name -> (rx, tx)
@@ -272,11 +284,11 @@ private fun InterfacesTab(session: RouterSession) {
     val rates = remember { mutableStateMapOf<String, Pair<Double, Double>>() }
     val history = remember { mutableStateListOf<Double>() } // total rx rate untuk spark
 
-    LaunchedEffect(session) {
+    LaunchedEffect(manager) {
         while (isActive) {
             try {
                 val now = System.currentTimeMillis()
-                val list = MonitorRepo.fetchInterfaces(session.client)
+                val list = manager.run { MonitorRepo.fetchInterfaces(it) }
                 val last = prevTime.value
                 if (last > 0) {
                     val dt = (now - last) / 1000.0
@@ -301,7 +313,7 @@ private fun InterfacesTab(session: RouterSession) {
                 ifaces = list
                 error = null
             } catch (e: Exception) {
-                error = e.message
+                error = friendlyError(e)
             }
             delay(2_000)
         }
@@ -345,6 +357,26 @@ private fun InterfacesTab(session: RouterSession) {
                 }
             }
         }
+    }
+}
+
+/** Ubah pesan error teknis menjadi Bahasa Indonesia yang ramah. */
+private fun friendlyError(e: Exception): String {
+    if (e is ApiTrapException) return e.trapMessage
+    val msg = e.message ?: return "Terjadi kesalahan tak dikenal"
+    return when {
+        msg.contains("Broken pipe", ignoreCase = true) ||
+            msg.contains("Connection reset", ignoreCase = true) ||
+            msg.contains("Koneksi terputus", ignoreCase = true) ||
+            msg.contains("Koneksi ditutup", ignoreCase = true) ->
+            "Koneksi ke router terputus"
+        msg.contains("timed out", ignoreCase = true) ||
+            msg.contains("timeout", ignoreCase = true) ->
+            "Router tidak merespons (timeout)"
+        msg.contains("failed to connect", ignoreCase = true) ||
+            msg.contains("Connection refused", ignoreCase = true) ->
+            "Tidak bisa menjangkau router — periksa WiFi dan service API"
+        else -> msg
     }
 }
 
