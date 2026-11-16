@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun NetworkMenuGrid(onOpen: (String) -> Unit) {
     val items = listOf(
+        Triple("quickset", "QuickSet", "Setup cepat AP rumahan: WiFi, DHCP, NAT"),
         Triple("ip", "Alamat IP", "IP yang terpasang di tiap interface"),
         Triple("dhcp", "Server DHCP", "Server DHCP + pool alamat"),
         Triple("lease", "Lease DHCP", "Perangkat yang sedang dapat alamat"),
@@ -106,6 +107,7 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "service" -> ServiceScreen(manager, onBack)
         "neighbor" -> NeighborScreen(manager, onBack)
         "konsol" -> ConsoleScreen(manager, onBack)
+        "quickset" -> QuickSetScreen(manager, onBack)
         else -> IpAddressScreen(manager, onBack)
     }
 }

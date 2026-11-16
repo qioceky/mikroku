@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,8 @@ import id.mikroku.data.AdvancedRepo
 import id.mikroku.data.BridgeEntry
 import id.mikroku.data.BridgePortEntry
 import id.mikroku.data.PoolEntry
+import id.mikroku.data.QuickSetConfig
+import id.mikroku.data.QuickSetRepo
 import id.mikroku.data.SecurityProfileEntry
 import id.mikroku.data.ServiceEntry
 import id.mikroku.data.SessionManager
@@ -743,5 +746,140 @@ fun NeighborScreen(manager: SessionManager, onBack: () -> Unit) {
                 if (line2.isNotBlank()) Text(line2, color = Muted, fontSize = 11.sp)
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------- QuickSet (v0.8)
+
+@Composable
+private fun QsField(label: String, value: String, hint: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value, onChange,
+        Modifier.fillMaxWidth(), singleLine = true,
+        label = { Text(label) },
+        supportingText = { if (hint.isNotBlank()) Text(hint) }
+    )
+    Spacer(Modifier.height(6.dp))
+}
+
+@Composable
+fun QuickSetScreen(manager: SessionManager, onBack: () -> Unit) {
+    var wan by remember { mutableStateOf("ether1") }
+    var bridge by remember { mutableStateOf("bridgeLocal") }
+    var lanPorts by remember { mutableStateOf("") }
+    var ssid by remember { mutableStateOf("") }
+    var wifiPassword by remember { mutableStateOf("") }
+    var lanAddress by remember { mutableStateOf("192.168.88.1/24") }
+    var poolRanges by remember { mutableStateOf("192.168.88.10-192.168.88.254") }
+    var confirm by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var resultLog by remember { mutableStateOf<List<String>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(manager) {
+        try {
+            val d = manager.run { QuickSetRepo.fetchDefaults(it) }
+            if (d.etherNames.isNotEmpty()) {
+                wan = d.etherNames.first()
+                if (lanPorts.isBlank()) {
+                    lanPorts = (d.etherNames.drop(1) + d.wirelessNames).joinToString(", ")
+                }
+            }
+        } catch (e: Exception) {
+            // Biarkan nilai bawaan; user bisa mengisi manual.
+        }
+    }
+
+    fun apply() {
+        val cfg = QuickSetConfig(
+            wanInterface = wan.trim(),
+            bridgeName = bridge.trim(),
+            lanPorts = lanPorts.split(",").map { it.trim() }.filter { it.isNotBlank() },
+            ssid = ssid.trim(),
+            wifiPassword = wifiPassword,
+            lanAddress = lanAddress.trim(),
+            poolRanges = poolRanges.trim()
+        )
+        scope.launch {
+            busy = true
+            error = null
+            resultLog = null
+            try {
+                resultLog = manager.runNoRetry { QuickSetRepo.apply(it, cfg) }
+            } catch (e: Exception) {
+                error = friendlyError(e)
+            }
+            busy = false
+            confirm = false
+        }
+    }
+
+    val valid = ssid.isNotBlank() && wifiPassword.length >= 8 &&
+        wan.isNotBlank() && bridge.isNotBlank() && lanAddress.contains("/")
+
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+        SectionHeader("QuickSet", onBack) { }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Setup cepat router sebagai AP rumahan (gateway): bridge LAN, WiFi + password, " +
+                "DHCP server, dan NAT — dalam sekali tekan.",
+            color = Muted, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(10.dp))
+        NeoCard {
+            Text(
+                "Aman diulang: setiap langkah memeriksa dulu. Konfigurasi yang sudah ada " +
+                    "dilewati atau diselaraskan — tidak ada yang dihapus.",
+                fontWeight = FontWeight.Bold, fontSize = 12.sp
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        QsField("Interface WAN (dari ISP)", wan, "port yang colok ke internet") { wan = it }
+        QsField("Nama Bridge LAN", bridge, "") { bridge = it }
+        QsField("Port LAN (pisahkan koma)", lanPorts, "port kabel + wireless yang digabung ke bridge") { lanPorts = it }
+        QsField("Nama WiFi (SSID)", ssid, "") { ssid = it }
+        QsField("Password WiFi (WPA2)", wifiPassword, "minimal 8 karakter") { wifiPassword = it }
+        if (wifiPassword.isNotEmpty() && wifiPassword.length < 8) {
+            Text("Password WiFi minimal 8 karakter", color = MikroRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+        }
+        QsField("IP LAN Router", lanAddress, "alamat router untuk jaringan lokal") { lanAddress = it }
+        QsField("Rentang DHCP", poolRanges, "alamat yang dibagikan ke perangkat") { poolRanges = it }
+        Spacer(Modifier.height(4.dp))
+        if (!confirm) {
+            NeoButton("Terapkan QuickSet", enabled = valid && !busy) { confirm = true }
+        } else {
+            NeoCard {
+                Text(
+                    "Terapkan setup ini ke router sekarang?",
+                    fontWeight = FontWeight.Black, fontSize = 14.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SmallButton("Batal") { confirm = false }
+                    SmallButton("Ya, Terapkan", fill = MikroRed, textColor = Color.White) { apply() }
+                }
+            }
+        }
+        if (busy) {
+            Spacer(Modifier.height(10.dp))
+            Text("Menerapkan ke router…", fontWeight = FontWeight.Bold)
+        }
+        error?.let {
+            Spacer(Modifier.height(10.dp))
+            Text(it, color = MikroRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        resultLog?.let { lines ->
+            Spacer(Modifier.height(10.dp))
+            NeoCard {
+                Text("Hasil QuickSet", fontWeight = FontWeight.Black, fontSize = 14.sp)
+                Spacer(Modifier.height(6.dp))
+                lines.forEach { line ->
+                    Text(line, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
