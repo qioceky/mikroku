@@ -99,7 +99,9 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
     val shown = if (!searching) emptyList() else flat.filter {
         it.title.contains(query, ignoreCase = true) || it.sub.contains(query, ignoreCase = true)
     }
-    Column {
+    Column(Modifier.fillMaxSize()) {
+        // Kolom pencarian DI LUAR area scroll + daftar diberi weight(1f):
+        // pencarian menempel tetap di atas, hanya kartu menu yang bergeser.
         androidx.compose.material3.OutlinedTextField(
             query, { query = it },
             Modifier.fillMaxWidth(), singleLine = true,
@@ -111,7 +113,7 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
             if (shown.isEmpty()) {
                 Text("Tidak ada fitur yang cocok dengan \"$query\".", color = Muted)
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(shown.chunked(2)) { pair ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             for (item in pair) MenuCard(item, Modifier.weight(1f), onOpen)
@@ -122,7 +124,7 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
                 }
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 for ((category, catItems) in menuCategories) {
                     item(key = "cat-$category") {
                         Text(
