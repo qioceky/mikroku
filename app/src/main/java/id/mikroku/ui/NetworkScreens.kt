@@ -113,7 +113,11 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
             if (shown.isEmpty()) {
                 Text("Tidak ada fitur yang cocok dengan \"$query\".", color = Muted)
             } else {
-                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyColumn(
+                    Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
+                ) {
                     items(shown.chunked(2)) { pair ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             for (item in pair) MenuCard(item, Modifier.weight(1f), onOpen)
@@ -124,7 +128,11 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
                 }
             }
         } else {
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
+            ) {
                 for ((category, catItems) in menuCategories) {
                     item(key = "cat-$category") {
                         Text(

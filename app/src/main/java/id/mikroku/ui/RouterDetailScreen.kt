@@ -104,7 +104,10 @@ fun RouterDetailScreen(
             !connected -> Text("Menyambungkan ke ${profile.host}…", fontWeight = FontWeight.Bold)
             else -> {
                 Box(Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxSize().padding(bottom = 86.dp)) {
+                    // Tanpa pita padding: konten mengalir DI BELAKANG navbar
+                    // mengambang (sekeliling pil transparan); ruang aman untuk
+                    // item terakhir diatur dari contentPadding tiap daftar.
+                    Box(Modifier.fillMaxSize()) {
                         when (tab) {
                             0 -> DashboardTab(manager, profile)
                             1 -> InterfacesTab(manager)
@@ -192,7 +195,10 @@ private fun DashboardTab(manager: SessionManager, profile: RouterProfile) {
         }
     }
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
+    ) {
         if (data != null && error != null) {
             item {
                 Text(
@@ -413,7 +419,10 @@ private fun InterfacesTab(manager: SessionManager) {
             Text("Gagal memuat interface: $it", color = MikroRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(10.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
+        ) {
             items(ifaces, key = { it.name }) { f ->
                 val r = rates[f.name]
                 NeoCard {
