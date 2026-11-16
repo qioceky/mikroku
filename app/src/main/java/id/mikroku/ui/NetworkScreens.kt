@@ -101,15 +101,11 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
         it.title.contains(query, ignoreCase = true) || it.sub.contains(query, ignoreCase = true)
     }
     Column(Modifier.fillMaxSize()) {
-        // Bilah pencarian MENEMPEL: di luar area scroll, latar PADAT (Paper)
-        // + garis bawah tinta — daftar bergeser DI BAWAH bilah ini, jadi
-        // posisinya terasa (dan memang) tidak ikut bergerak.
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .background(Paper)
-                .padding(bottom = 10.dp)
-        ) {
+        // Bilah pencarian MENEMPEL: di luar area scroll, latar PADAT (Paper).
+        // Di bawah garis tinta ada pita padat 12dp yang diam — kartu menu
+        // selalu hilang di belakang pita bersih ini saat scroll (tampilan
+        // seperti posisi paling atas), tidak mepet terpotong di garisnya.
+        Column(Modifier.fillMaxWidth().background(Paper)) {
             androidx.compose.material3.OutlinedTextField(
                 query, { query = it },
                 Modifier.fillMaxWidth(), singleLine = true,
@@ -124,8 +120,10 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
                     cursorColor = Ink
                 )
             )
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().height(2.5.dp).background(Ink))
+            Spacer(Modifier.height(12.dp))
         }
-        Box(Modifier.fillMaxWidth().height(2.5.dp).background(Ink))
         if (searching) {
             if (shown.isEmpty()) {
                 Text("Tidak ada fitur yang cocok dengan \"$query\".", color = Muted)
@@ -133,7 +131,7 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
                 LazyColumn(
                     Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 10.dp, bottom = 100.dp)
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
                 ) {
                     items(shown.chunked(2)) { pair ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -148,7 +146,7 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
             LazyColumn(
                 Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 10.dp, bottom = 100.dp)
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
             ) {
                 for ((category, catItems) in menuCategories) {
                     item(key = "cat-$category") {

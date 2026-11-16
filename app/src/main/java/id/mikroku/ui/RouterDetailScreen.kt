@@ -1,5 +1,13 @@
 package id.mikroku.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -108,10 +116,20 @@ fun RouterDetailScreen(
                     // mengambang (sekeliling pil transparan); ruang aman untuk
                     // item terakhir diatur dari contentPadding tiap daftar.
                     Box(Modifier.fillMaxSize()) {
-                        when (tab) {
-                            0 -> DashboardTab(manager, profile)
-                            1 -> InterfacesTab(manager)
-                            else -> NetworkMenuGrid { section = it }
+                        // Pindah tab dianimasikan: konten baru geser + pudar masuk.
+                        AnimatedContent(
+                            targetState = tab,
+                            transitionSpec = {
+                                (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 5 }) togetherWith
+                                    (fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { -it / 5 })
+                            },
+                            label = "tabContent"
+                        ) { t ->
+                            when (t) {
+                                0 -> DashboardTab(manager, profile)
+                                1 -> InterfacesTab(manager)
+                                else -> NetworkMenuGrid { section = it }
+                            }
                         }
                     }
                     FloatingNavBar(
@@ -152,10 +170,16 @@ private fun FloatingNavBar(tab: Int, modifier: Modifier = Modifier, onSelect: (I
 
 @Composable
 private fun NavBarItem(icon: String, label: String, active: Boolean, onClick: () -> Unit) {
+    // Sorotan kuning berpindah lembut antar tombol (tidak nyala-mati kaku).
+    val bg by animateColorAsState(
+        if (active) MikroYellow else Color.Transparent,
+        animationSpec = tween(250),
+        label = "navBg"
+    )
     Column(
         Modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(if (active) MikroYellow else Color.Transparent)
+            .background(bg)
             .clickable { onClick() }
             .padding(horizontal = 18.dp, vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally
