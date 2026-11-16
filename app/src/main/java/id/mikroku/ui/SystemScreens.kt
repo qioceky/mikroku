@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.mikroku.data.CrudRepo
 import id.mikroku.data.DashboardData
+import id.mikroku.data.FileEntry
 import id.mikroku.data.MonitorRepo
 import id.mikroku.data.RouterUserEntry
 import id.mikroku.data.SchedulerEntry
@@ -494,8 +495,26 @@ private fun LogsSection(manager: SessionManager, tick: Int) {
     }
 }
 
+private fun fileRenameForm(existing: FileEntry): CrudFormSpec =
+    CrudFormSpec(
+        title = "Ganti Nama File",
+        isEdit = true,
+        fields = listOf(
+            CrudField("name", "Nama Baru", existing.name, required = true)
+        ),
+        submit = { client, v ->
+            CrudRepo.set(client, "/file", existing.id, mapOf("name" to (v["name"] ?: "")))
+        }
+    )
+
 @Composable
 private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Unit) {
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; onChanged() }, onCancel = { form = null })
+        return
+    }
     PollingCards(
         manager = manager, resetKey = "sys-file", tick = tick, onChanged = onChanged,
         fetch = { SystemRepo.fetchFiles(it) },
@@ -511,9 +530,12 @@ private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Un
             }
             Text(meta, color = Muted, fontSize = 11.sp)
             Spacer(Modifier.height(8.dp))
-            ConfirmActionButton("Hapus", run = {
-                manager.runNoRetry { CrudRepo.remove(it, "/file", e.id) }
-            }, onDone = changed)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SmallButton("Ganti Nama") { form = fileRenameForm(e) }
+                ConfirmActionButton("Hapus", run = {
+                    manager.runNoRetry { CrudRepo.remove(it, "/file", e.id) }
+                }, onDone = changed)
+            }
         }
     }
 }
@@ -550,8 +572,13 @@ private fun BackupSection(manager: SessionManager) {
 
     Column {
         Text(
-            "Buat cadangan konfigurasi router. File-nya tersimpan di penyimpanan router " +
-                "(bukan di HP) dan muncul di sub-menu File.",
+            "Keduanya menyimpan SELURUH konfigurasi router:\n" +
+                "• Backup (.backup) — salinan biner lengkap 1:1, termasuk user & password, " +
+                "untuk restore di router yang sama.\n" +
+                "• Export (.rsc) — seluruh settingan sebagai script teks yang bisa dibaca " +
+                "dan dipindah ke router lain; password user & isi file tidak ikut.\n\n" +
+                "File tersimpan di penyimpanan router (lihat sub-menu File). Mengunduh file " +
+                "ke HP belum bisa lewat API — ambil lewat WinBox/WebFig bila perlu memindahkannya.",
             color = Muted, fontSize = 12.sp
         )
         Spacer(Modifier.height(12.dp))

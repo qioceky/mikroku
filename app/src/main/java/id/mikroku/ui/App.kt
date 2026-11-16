@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -86,7 +87,9 @@ fun MikroKuApp() {
     }
 
     MikroKuTheme {
-        Box(Modifier.fillMaxSize().background(Paper)) {
+        // safeDrawingPadding: konten tidak lagi tertutup status bar / bar
+        // navigasi (Android 15 menggambar edge-to-edge secara bawaan).
+        Box(Modifier.fillMaxSize().background(Paper).safeDrawingPadding()) {
             when (val s = screen) {
                 is Screen.Home -> {
                     LaunchedEffect(routers.size) { checkStatuses() }
