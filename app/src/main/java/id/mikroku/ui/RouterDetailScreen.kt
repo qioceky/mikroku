@@ -99,9 +99,9 @@ fun RouterDetailScreen(
                     NetworkSectionScreen(sec, manager) { section = null }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TabChip("Dashboard", tab == 0, Modifier.weight(1f)) { tab = 0 }
-                        TabChip("Interface", tab == 1, Modifier.weight(1f)) { tab = 1 }
-                        TabChip("Menu", tab == 2, Modifier.weight(1f)) { tab = 2 }
+                        TabChip("Dashboard", Fa.GAUGE, tab == 0, Modifier.weight(1f)) { tab = 0 }
+                        TabChip("Interface", Fa.NETWORK_WIRED, tab == 1, Modifier.weight(1f)) { tab = 1 }
+                        TabChip("Menu", Fa.GRIP, tab == 2, Modifier.weight(1f)) { tab = 2 }
                     }
                     Spacer(Modifier.height(12.dp))
                     when (tab) {
@@ -116,7 +116,7 @@ fun RouterDetailScreen(
 }
 
 @Composable
-private fun TabChip(text: String, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun TabChip(text: String, icon: String, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
         modifier
             .clip(RoundedCornerShape(10.dp))
@@ -126,7 +126,10 @@ private fun TabChip(text: String, active: Boolean, modifier: Modifier = Modifier
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, fontWeight = FontWeight.Black, fontSize = 14.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FaIcon(icon, Modifier.padding(end = 6.dp), size = 13.sp)
+            Text(text, fontWeight = FontWeight.Black, fontSize = 14.sp)
+        }
     }
 }
 
@@ -213,6 +216,14 @@ private fun DashboardTab(manager: SessionManager, profile: RouterProfile) {
                     NeoCard(Modifier.weight(1f)) {
                         Text("UPTIME", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Muted)
                         Text(d.uptime, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                    }
+                }
+            }
+            if (d.hotspotActive != null || d.leaseCount != null) {
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatCard("SESI HOTSPOT", d.hotspotActive?.toString() ?: "-", Modifier.weight(1f), null)
+                        StatCard("LEASE DHCP", d.leaseCount?.toString() ?: "-", Modifier.weight(1f), null)
                     }
                 }
             }

@@ -122,6 +122,11 @@ fun AboutScreen(onBack: () -> Unit) {
                     "Tanpa iklan, tanpa analytics, tanpa server tengah — HP tersambung langsung ke router kamu dan kredensial tersimpan terenkripsi di HP.",
                 fontSize = 13.sp
             )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Ikon: Font Awesome Free 6.5.2 (lisensi CC BY 4.0, fontawesome.com).",
+                color = Muted, fontSize = 11.sp
+            )
         }
         Spacer(Modifier.height(12.dp))
 

@@ -59,6 +59,17 @@ data class AddressListEntry(
     val dynamic: Boolean
 )
 
+data class ConnectionEntry(
+    val id: String,
+    val protocol: String,
+    val srcAddress: String,
+    val dstAddress: String,
+    val state: String,
+    val timeout: String,
+    val origBytes: Long,
+    val replBytes: Long
+)
+
 data class ArpEntry(
     val id: String,
     val address: String,
@@ -193,6 +204,23 @@ object NetworkRepo {
                     comment = r["comment"] ?: "",
                     disabled = r["disabled"] == "true",
                     dynamic = r["dynamic"] == "true"
+                )
+            }
+        } }
+
+    /** Koneksi aktif dari tabel tracking firewall (dibatasi 500 entri pertama). */
+    suspend fun fetchConnections(client: MikrotikClient): List<ConnectionEntry> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/ip/firewall/connection/print").take(500).map { r ->
+                ConnectionEntry(
+                    id = r[".id"] ?: "",
+                    protocol = r["protocol"] ?: "",
+                    srcAddress = r["src-address"] ?: "-",
+                    dstAddress = r["dst-address"] ?: "-",
+                    state = r["tcp-state"] ?: (r["connection-state"] ?: ""),
+                    timeout = r["timeout"] ?: "",
+                    origBytes = r["orig-bytes"]?.toLongOrNull() ?: 0L,
+                    replBytes = r["repl-bytes"]?.toLongOrNull() ?: 0L
                 )
             }
         } }

@@ -15,7 +15,9 @@ data class DashboardData(
     val clockTime: String,
     val clockDate: String,
     val temperature: String?,
-    val voltage: String?
+    val voltage: String?,
+    val hotspotActive: Int? = null,
+    val leaseCount: Int? = null
 )
 
 data class InterfaceData(
@@ -64,6 +66,16 @@ object MonitorRepo {
         } catch (e: Exception) {
             emptyMap() // tidak semua board punya sensor health
         }
+        val hotspotActive = try {
+            client.run("/ip/hotspot/active/print").size
+        } catch (e: Exception) {
+            null // hotspot belum tentu terpasang
+        }
+        val leaseCount = try {
+            client.run("/ip/dhcp-server/lease/print").size
+        } catch (e: Exception) {
+            null
+        }
         DashboardData(
             identity = identity["name"] ?: "-",
             boardName = resource["board-name"] ?: "-",
@@ -75,7 +87,9 @@ object MonitorRepo {
             clockTime = clock["time"] ?: "-",
             clockDate = clock["date"] ?: "-",
             temperature = health["temperature"],
-            voltage = health["voltage"]
+            voltage = health["voltage"],
+            hotspotActive = hotspotActive,
+            leaseCount = leaseCount
         )
     } }
 

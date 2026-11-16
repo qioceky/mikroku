@@ -68,7 +68,8 @@ fun SystemScreen(manager: SessionManager, onBack: () -> Unit) {
                 "script" to "Script",
                 "log" to "Log",
                 "file" to "File",
-                "backup" to "Backup"
+                "backup" to "Backup",
+                "paket" to "Paket"
             ),
             kind
         ) { kind = it }
@@ -82,6 +83,7 @@ fun SystemScreen(manager: SessionManager, onBack: () -> Unit) {
             "log" -> LogsSection(manager, tick)
             "file" -> FilesSection(manager, tick) { tick++ }
             "backup" -> BackupSection(manager)
+            "paket" -> PackagesSection(manager, tick)
         }
     }
 }
@@ -708,6 +710,26 @@ private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Un
                     }, onDone = changed)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PackagesSection(manager: SessionManager, tick: Int) {
+    PollingCards(
+        manager = manager, resetKey = "sys-paket", tick = tick, onChanged = {},
+        fetch = { SystemRepo.fetchPackages(it) },
+        emptyText = "Tidak ada paket terbaca.",
+        itemKey = { it.id }
+    ) { e, _ ->
+        NeoCard {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(e.name, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                if (e.version.isNotBlank()) {
+                    Text("v${e.version}", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            StateTags("nonaktif" to e.disabled)
         }
     }
 }

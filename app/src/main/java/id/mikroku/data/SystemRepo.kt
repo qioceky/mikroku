@@ -59,8 +59,28 @@ data class FileEntry(
     val creationTime: String
 )
 
+data class PackageEntry(
+    val id: String,
+    val name: String,
+    val version: String,
+    val disabled: Boolean
+)
+
 /** Repo administrasi sistem (v0.5). */
 object SystemRepo {
+
+    /** Daftar paket RouterOS terpasang + versinya. */
+    suspend fun fetchPackages(client: MikrotikClient): List<PackageEntry> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/system/package/print").map { r ->
+                PackageEntry(
+                    id = r[".id"] ?: (r["name"] ?: ""),
+                    name = r["name"] ?: "-",
+                    version = r["version"] ?: "",
+                    disabled = r["disabled"] == "true"
+                )
+            }
+        } }
 
     suspend fun fetchUsers(client: MikrotikClient): List<RouterUserEntry> =
         withContext(Dispatchers.IO) { synchronized(client) {

@@ -42,35 +42,61 @@ import kotlinx.coroutines.launch
 
 private data class MenuItem(val key: String, val icon: String, val title: String, val sub: String)
 
-/** Menu fitur jaringan (tab Menu di layar router) — dengan ikon + pencarian. */
+/** Menu fitur dikelompokkan per kategori; ikon Font Awesome. */
+private val menuCategories: List<Pair<String, List<MenuItem>>> = listOf(
+    "Setup" to listOf(
+        MenuItem("quickset", Fa.BOLT, "QuickSet", "Setup cepat AP rumahan: WiFi, DHCP, NAT")
+    ),
+    "Jaringan" to listOf(
+        MenuItem("ip", Fa.GLOBE, "Alamat IP", "IP yang terpasang di tiap interface"),
+        MenuItem("dhcp", Fa.SERVER, "Server DHCP", "Server DHCP + pool alamat"),
+        MenuItem("lease", Fa.TICKET, "Lease DHCP", "Perangkat yang sedang dapat alamat"),
+        MenuItem("dhcp-client", Fa.CLOUD_DOWN, "DHCP Client", "IP dari ISP, gateway, dan statusnya"),
+        MenuItem("pool", Fa.DATABASE, "IP Pool", "Kumpulan alamat untuk DHCP/hotspot/PPP"),
+        MenuItem("dns", Fa.BOOK, "DNS", "Server DNS, entri static, dan cache"),
+        MenuItem("route", Fa.ROUTE, "Routing", "Tabel rute router"),
+        MenuItem("arp", Fa.ARROWS_LR, "Tabel ARP", "Pasangan IP ↔ MAC di jaringan lokal"),
+        MenuItem("neighbor", Fa.EYE, "Neighbors", "Perangkat MikroTik lain yang terdeteksi")
+    ),
+    "Keamanan" to listOf(
+        MenuItem("firewall", Fa.SHIELD, "Firewall", "Filter, NAT, mangle — lihat + ubah"),
+        MenuItem("addrlist", Fa.ADDRESS_BOOK, "Address List", "Daftar alamat untuk firewall"),
+        MenuItem("koneksi", Fa.DIAGRAM, "Koneksi Aktif", "Tracking koneksi yang sedang lewat"),
+        MenuItem("service", Fa.BELL, "IP Service", "Service router: api, winbox, www, ssh")
+    ),
+    "Layanan" to listOf(
+        MenuItem("hotspot", Fa.WIFI, "Hotspot", "Server, user, voucher, dan sesi aktif"),
+        MenuItem("pppoe", Fa.PLUG, "PPPoE", "Secret PPP + sesi aktif"),
+        MenuItem("queue", Fa.LIST_OL, "Queue", "Simple queue + queue tree"),
+        MenuItem("wireless", Fa.TOWER, "Wireless", "SSID, mode, dan perangkat terhubung"),
+        MenuItem("bridge", Fa.SITEMAP, "Bridge", "Bridge dan port-portnya"),
+        MenuItem("vlan", Fa.TAGS, "VLAN", "Interface VLAN 802.1Q")
+    ),
+    "Sistem & Alat" to listOf(
+        MenuItem("sistem", Fa.GEAR, "Sistem", "User, scheduler, script, log, file, backup"),
+        MenuItem("tools", Fa.WRENCH, "Tools", "Ping, traceroute, bandwidth test, WoL"),
+        MenuItem("konsol", Fa.TERMINAL, "Konsol API", "Jalankan perintah API mentah")
+    )
+)
+
+@Composable
+private fun MenuCard(item: MenuItem, modifier: Modifier = Modifier, onOpen: (String) -> Unit) {
+    NeoCard(modifier, onClick = { onOpen(item.key) }) {
+        FaIcon(item.icon, size = 21.sp)
+        Spacer(Modifier.height(5.dp))
+        Text(item.title, fontWeight = FontWeight.Black, fontSize = 15.sp)
+        Spacer(Modifier.height(2.dp))
+        Text(item.sub, color = Muted, fontSize = 11.sp)
+    }
+}
+
+/** Menu fitur jaringan (tab Menu di layar router) — berkelompok + pencarian. */
 @Composable
 fun NetworkMenuGrid(onOpen: (String) -> Unit) {
-    val items = listOf(
-        MenuItem("quickset", "⚡", "QuickSet", "Setup cepat AP rumahan: WiFi, DHCP, NAT"),
-        MenuItem("ip", "🌐", "Alamat IP", "IP yang terpasang di tiap interface"),
-        MenuItem("dhcp", "🗂️", "Server DHCP", "Server DHCP + pool alamat"),
-        MenuItem("lease", "🎫", "Lease DHCP", "Perangkat yang sedang dapat alamat"),
-        MenuItem("route", "🗺️", "Routing", "Tabel rute router"),
-        MenuItem("arp", "🔗", "Tabel ARP", "Pasangan IP ↔ MAC di jaringan lokal"),
-        MenuItem("firewall", "🛡️", "Firewall", "Filter, NAT, mangle — lihat + ubah"),
-        MenuItem("addrlist", "📒", "Address List", "Daftar alamat untuk firewall"),
-        MenuItem("hotspot", "📶", "Hotspot", "Server, user, voucher, dan sesi aktif"),
-        MenuItem("pppoe", "🔌", "PPPoE", "Secret PPP + sesi aktif"),
-        MenuItem("queue", "🚦", "Queue", "Simple queue + queue tree"),
-        MenuItem("tools", "🛠️", "Tools", "Ping, traceroute, bandwidth test"),
-        MenuItem("sistem", "⚙️", "Sistem", "User, scheduler, script, log, file, backup"),
-        MenuItem("wireless", "📡", "Wireless", "SSID, mode, dan perangkat terhubung"),
-        MenuItem("bridge", "🌉", "Bridge", "Bridge dan port-portnya"),
-        MenuItem("vlan", "🏷️", "VLAN", "Interface VLAN 802.1Q"),
-        MenuItem("dns", "📖", "DNS", "Server DNS, entri static, dan cache"),
-        MenuItem("pool", "🎱", "IP Pool", "Kumpulan alamat untuk DHCP/hotspot/PPP"),
-        MenuItem("dhcp-client", "📥", "DHCP Client", "IP dari ISP, gateway, dan statusnya"),
-        MenuItem("service", "🛎️", "IP Service", "Service router: api, winbox, www, ssh"),
-        MenuItem("neighbor", "👀", "Neighbors", "Perangkat MikroTik lain yang terdeteksi"),
-        MenuItem("konsol", "💻", "Konsol API", "Jalankan perintah API mentah")
-    )
     var query by remember { mutableStateOf("") }
-    val shown = if (query.isBlank()) items else items.filter {
+    val searching = query.isNotBlank()
+    val flat = menuCategories.flatMap { it.second }
+    val shown = if (!searching) emptyList() else flat.filter {
         it.title.contains(query, ignoreCase = true) || it.sub.contains(query, ignoreCase = true)
     }
     Column {
@@ -81,22 +107,35 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
             placeholder = { Text("mis. voucher, backup, firewall") }
         )
         Spacer(Modifier.height(12.dp))
-        if (shown.isEmpty()) {
-            Text("Tidak ada fitur yang cocok dengan \"$query\".", color = Muted)
+        if (searching) {
+            if (shown.isEmpty()) {
+                Text("Tidak ada fitur yang cocok dengan \"$query\".", color = Muted)
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(shown.chunked(2)) { pair ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            for (item in pair) MenuCard(item, Modifier.weight(1f), onOpen)
+                            if (pair.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                    item { Spacer(Modifier.height(8.dp)) }
+                }
+            }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(shown.chunked(2)) { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        for (item in pair) {
-                            NeoCard(Modifier.weight(1f), onClick = { onOpen(item.key) }) {
-                                Text(item.icon, fontSize = 20.sp)
-                                Spacer(Modifier.height(4.dp))
-                                Text(item.title, fontWeight = FontWeight.Black, fontSize = 15.sp)
-                                Spacer(Modifier.height(2.dp))
-                                Text(item.sub, color = Muted, fontSize = 11.sp)
-                            }
+                for ((category, catItems) in menuCategories) {
+                    item(key = "cat-$category") {
+                        Text(
+                            category.uppercase(),
+                            fontWeight = FontWeight.Black, fontSize = 12.sp, color = Muted,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    items(catItems.chunked(2), key = { "row-" + it.first().key }) { pair ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            for (item in pair) MenuCard(item, Modifier.weight(1f), onOpen)
+                            if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
                 item { Spacer(Modifier.height(8.dp)) }
@@ -116,6 +155,7 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "arp" -> ArpScreen(manager, onBack)
         "firewall" -> FirewallScreen(manager, onBack)
         "addrlist" -> AddressListScreen(manager, onBack)
+        "koneksi" -> ConnectionsScreen(manager, onBack)
         "hotspot" -> HotspotScreen(manager, onBack)
         "pppoe" -> PppScreen(manager, onBack)
         "queue" -> QueueScreen(manager, onBack)
@@ -484,6 +524,92 @@ private fun AddressListScreen(manager: SessionManager, onBack: () -> Unit) {
                         }, onDone = onChanged)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionsScreen(manager: SessionManager, onBack: () -> Unit) {
+    var rows by remember { mutableStateOf<List<id.mikroku.data.ConnectionEntry>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var tick by remember { mutableStateOf(0) }
+    var proto by remember { mutableStateOf("semua") }
+    var cari by remember { mutableStateOf("") }
+
+    LaunchedEffect(manager, tick) {
+        while (isActive) {
+            try {
+                rows = manager.run { NetworkRepo.fetchConnections(it) }
+                error = null
+            } catch (e: Exception) {
+                error = friendlyError(e)
+            }
+            delay(10_000)
+        }
+    }
+
+    val all = rows
+    val filtered = all?.filter { e ->
+        (proto == "semua" || e.protocol.equals(proto, ignoreCase = true)) &&
+            (cari.isBlank() || e.srcAddress.contains(cari, true) || e.dstAddress.contains(cari, true))
+    }
+
+    Column {
+        SectionHeader("Koneksi Aktif", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Tabel tracking firewall — koneksi yang sedang lewat router (maks 500 entri pertama).",
+            color = Muted, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.material3.OutlinedTextField(
+            cari, { cari = it },
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("Cari alamat IP…") }
+        )
+        Spacer(Modifier.height(8.dp))
+        KindChips(
+            listOf("semua" to "Semua", "tcp" to "TCP", "udp" to "UDP", "icmp" to "ICMP"),
+            proto
+        ) { proto = it }
+        Spacer(Modifier.height(10.dp))
+        error?.let {
+            Text(it, color = MikroRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+        }
+        when {
+            all == null -> Text(
+                if (error != null) "Gagal memuat data." else "Memuat…",
+                fontWeight = FontWeight.Bold
+            )
+            filtered.isNullOrEmpty() -> Text("Tidak ada koneksi yang cocok.", color = Muted)
+            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(filtered, key = { it.id }) { e ->
+                    NeoCard {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(
+                                e.protocol.uppercase().ifBlank { "-" },
+                                fontWeight = FontWeight.Black, fontSize = 13.sp
+                            )
+                            if (e.state.isNotBlank()) {
+                                Text(e.state, color = Muted, fontSize = 11.sp)
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text("${e.srcAddress} → ${e.dstAddress}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        val meta = buildString {
+                            append("↓ ${formatBytes(e.origBytes)} • ↑ ${formatBytes(e.replBytes)}")
+                            if (e.timeout.isNotBlank()) append(" • sisa ${e.timeout}")
+                        }
+                        Text(meta, color = Muted, fontSize = 11.sp)
+                        Spacer(Modifier.height(8.dp))
+                        ConfirmActionButton("Putus", run = {
+                            manager.runNoRetry { CrudRepo.remove(it, "/ip/firewall/connection", e.id) }
+                        }, onDone = { tick++ })
+                    }
+                }
+                item { Spacer(Modifier.height(8.dp)) }
             }
         }
     }

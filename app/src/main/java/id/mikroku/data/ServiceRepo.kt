@@ -246,6 +246,14 @@ object ServiceRepo {
 
     // ---------- Tools ----------
 
+    /** Wake-on-LAN dari router: kirim magic packet ke [mac] (lewat [iface] bila diisi). */
+    suspend fun wakeOnLan(client: MikrotikClient, mac: String, iface: String) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            val words = mutableListOf("/tool/wol", "=mac=$mac")
+            if (iface.isNotBlank()) words.add("=interface=$iface")
+            client.runCommand(*words.toTypedArray())
+        } }
+
     /**
      * Ping DARI router ke [address] (5 paket). Mengembalikan baris hasil
      * siap tampil. Mungkin perlu policy test di user API.

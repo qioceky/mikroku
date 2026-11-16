@@ -867,6 +867,54 @@ fun ToolsScreen(manager: SessionManager, onBack: () -> Unit) {
                 res["status"]?.let { Text("Status: $it", color = Muted, fontSize = 11.sp) }
             }
         }
+        Spacer(Modifier.height(18.dp))
+        Text("Wake-on-LAN", fontWeight = FontWeight.Black, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Bangunkan perangkat yang tidur dari router (magic packet). Perangkat tujuan " +
+                "harus mendukung WoL dan terhubung kabel ke jaringan router.",
+            color = Muted, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        var wolMac by remember { mutableStateOf("") }
+        var wolIface by remember { mutableStateOf("") }
+        var wolBusy by remember { mutableStateOf(false) }
+        var wolMsg by remember { mutableStateOf<String?>(null) }
+        OutlinedTextField(
+            wolMac, { wolMac = it },
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("MAC address perangkat") },
+            supportingText = { Text("format AA:BB:CC:DD:EE:FF") }
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            wolIface, { wolIface = it },
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("Interface (opsional)") },
+            supportingText = { Text("kosong = broadcast ke semua interface") }
+        )
+        Spacer(Modifier.height(10.dp))
+        NeoButton(
+            if (wolBusy) "Mengirim…" else "Bangunkan",
+            fill = CardFill,
+            enabled = !wolBusy && wolMac.isNotBlank()
+        ) {
+            wolBusy = true
+            wolMsg = null
+            scope.launch {
+                try {
+                    manager.runNoRetry { ServiceRepo.wakeOnLan(it, wolMac.trim(), wolIface.trim()) }
+                    wolMsg = "Magic packet terkirim ke ${wolMac.trim()}."
+                } catch (e: Exception) {
+                    wolMsg = friendlyError(e)
+                }
+                wolBusy = false
+            }
+        }
+        wolMsg?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
         Spacer(Modifier.height(16.dp))
     }
 }
