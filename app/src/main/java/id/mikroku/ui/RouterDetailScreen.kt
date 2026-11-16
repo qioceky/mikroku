@@ -374,8 +374,8 @@ private fun InterfacesTab(manager: SessionManager) {
 fun friendlyError(e: Exception): String {
     val raw = e.message ?: return "Terjadi kesalahan tak dikenal"
     if (raw.contains("not enough permissions", ignoreCase = true)) {
-        return "Izin kurang: user API ini tidak punya policy write. " +
-            "Fitur ubah data perlu user dengan policy read,write,api."
+        return "Izin kurang: user API ini tidak punya policy yang dibutuhkan (write/test). " +
+            "Untuk fitur ubah data & tools, buat user dengan policy read,write,api,test."
     }
     if (e is ApiTrapException) return e.trapMessage
     val msg = raw

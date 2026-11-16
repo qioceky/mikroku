@@ -47,6 +47,10 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
         Triple("route", "Routing", "Tabel rute router"),
         Triple("arp", "Tabel ARP", "Pasangan IP ↔ MAC di jaringan lokal"),
         Triple("firewall", "Firewall", "Filter, NAT, mangle — lihat + aktif/nonaktif"),
+        Triple("hotspot", "Hotspot", "Server, user, dan sesi aktif"),
+        Triple("pppoe", "PPPoE", "Secret PPP + sesi aktif"),
+        Triple("queue", "Queue", "Simple queue + queue tree"),
+        Triple("tools", "Tools", "Ping & traceroute dari router"),
         Triple("dns", "DNS", "Server DNS, entri static, dan cache")
     )
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -76,13 +80,17 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "route" -> RouteScreen(manager, onBack)
         "arp" -> ArpScreen(manager, onBack)
         "firewall" -> FirewallScreen(manager, onBack)
+        "hotspot" -> HotspotScreen(manager, onBack)
+        "pppoe" -> PppScreen(manager, onBack)
+        "queue" -> QueueScreen(manager, onBack)
+        "tools" -> ToolsScreen(manager, onBack)
         "dns" -> DnsScreen(manager, onBack)
         else -> IpAddressScreen(manager, onBack)
     }
 }
 
 @Composable
-private fun SectionHeader(title: String, onBack: () -> Unit, onRefresh: () -> Unit) {
+fun SectionHeader(title: String, onBack: () -> Unit, onRefresh: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text("← Menu", fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onBack() })
         Text(title, fontWeight = FontWeight.Black, fontSize = 16.sp)
@@ -144,7 +152,7 @@ private fun <T> PollingSection(
 }
 
 @Composable
-private fun StateTags(vararg tags: Pair<String, Boolean>) {
+fun StateTags(vararg tags: Pair<String, Boolean>) {
     val shown = tags.filter { it.second }.map { it.first }
     if (shown.isNotEmpty()) {
         Text(shown.joinToString(" • "), color = Muted, fontSize = 11.sp)
@@ -296,7 +304,7 @@ private fun ArpScreen(manager: SessionManager, onBack: () -> Unit) {
 }
 
 @Composable
-private fun SmallButton(
+fun SmallButton(
     text: String,
     fill: Color = Color.White,
     textColor: Color = Ink,
