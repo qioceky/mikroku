@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.sp
 import id.mikroku.data.AdvancedRepo
 import id.mikroku.data.BridgeEntry
 import id.mikroku.data.BridgePortEntry
+import id.mikroku.data.PoolEntry
+import id.mikroku.data.SecurityProfileEntry
+import id.mikroku.data.ServiceEntry
 import id.mikroku.data.SessionManager
 import id.mikroku.data.VlanEntry
 import id.mikroku.data.WirelessEntry
@@ -64,7 +67,10 @@ fun WirelessScreen(manager: SessionManager, onBack: () -> Unit) {
     Column {
         SectionHeader("Wireless", onBack) { tick++ }
         Spacer(Modifier.height(10.dp))
-        KindChips(listOf("interface" to "Interface", "terhubung" to "Terhubung"), kind) { kind = it }
+        KindChips(
+            listOf("interface" to "Interface", "terhubung" to "Terhubung", "keamanan" to "Keamanan"),
+            kind
+        ) { kind = it }
         Spacer(Modifier.height(10.dp))
         if (kind == "interface") {
             PollingCards(
@@ -100,7 +106,7 @@ fun WirelessScreen(manager: SessionManager, onBack: () -> Unit) {
                     SmallButton("Edit SSID / Mode") { form = wirelessForm(e) }
                 }
             }
-        } else {
+        } else if (kind == "terhubung") {
             PollingCards(
                 manager = manager, resetKey = "wl-reg", tick = tick, onChanged = { tick++ },
                 fetch = { AdvancedRepo.fetchWirelessClients(it) },
@@ -129,8 +135,72 @@ fun WirelessScreen(manager: SessionManager, onBack: () -> Unit) {
                     if (rates.isNotBlank()) Text(rates, color = Muted, fontSize = 11.sp)
                 }
             }
+        } else {
+            NeoButton("+ Tambah Profil", fill = Color.White) { form = securityProfileForm(null) }
+            Spacer(Modifier.height(10.dp))
+            PollingCards(
+                manager = manager, resetKey = "wl-sec", tick = tick, onChanged = { tick++ },
+                fetch = { AdvancedRepo.fetchSecurityProfiles(it) },
+                emptyText = "Tidak ada profil keamanan.",
+                itemKey = { it.id }
+            ) { e, changed ->
+                NeoCard {
+                    Text(
+                        e.name + if (e.isDefault) " (default)" else "",
+                        fontWeight = FontWeight.Black, fontSize = 15.sp
+                    )
+                    val meta = buildString {
+                        if (e.mode.isNotBlank()) append(e.mode)
+                        if (e.authTypes.isNotBlank()) append(" • ${e.authTypes}")
+                    }
+                    if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 11.sp)
+                    Text(
+                        "Password WPA2: ${if (e.hasWpa2Key) "sudah diset" else "belum diset"}",
+                        color = Muted, fontSize = 11.sp
+                    )
+                    if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallButton("Edit") { form = securityProfileForm(e) }
+                        if (!e.isDefault) {
+                            ConfirmActionButton("Hapus", run = {
+                                manager.runNoRetry {
+                                    CrudRepo.remove(it, "/interface/wireless/security-profiles", e.id)
+                                }
+                            }, onDone = changed)
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+private fun securityProfileForm(existing: SecurityProfileEntry?): CrudFormSpec {
+    val edit = existing != null
+    return CrudFormSpec(
+        title = if (edit) "Edit Profil Keamanan" else "Tambah Profil Keamanan",
+        isEdit = edit,
+        fields = listOf(
+            CrudField("name", "Nama Profil", existing?.name ?: "", required = true),
+            CrudField("mode", "Mode", existing?.mode ?: "dynamic-keys",
+                options = listOf("dynamic-keys", "static-keys-optional", "static-keys-required", "none")),
+            CrudField("authentication-types", "Autentikasi", existing?.authTypes ?: "wpa2-psk",
+                options = listOf("wpa2-psk", "wpa-psk,wpa2-psk", "wpa-psk")),
+            CrudField("wpa2-pre-shared-key", "Password WPA2", "",
+                hint = if (edit) "Kosongkan bila tidak diubah" else "Password WiFi (min. 8 karakter)",
+                skipBlankOnEdit = true),
+            CrudField("comment", "Komentar", existing?.comment ?: "")
+        ),
+        submit = { client, v ->
+            if (edit) {
+                val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "comment" }
+                CrudRepo.set(client, "/interface/wireless/security-profiles", existing!!.id, attrs)
+            } else {
+                CrudRepo.add(client, "/interface/wireless/security-profiles", v.filterValues { it.isNotBlank() })
+            }
+        }
+    )
 }
 
 // ---------------------------------------------------------------- Bridge
@@ -444,5 +514,234 @@ fun ConsoleScreen(manager: SessionManager, onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+// ---------------------------------------------------------------- IP Pool (v0.7)
+
+private fun poolForm(existing: PoolEntry?): CrudFormSpec {
+    val edit = existing != null
+    return CrudFormSpec(
+        title = if (edit) "Edit IP Pool" else "Tambah IP Pool",
+        isEdit = edit,
+        fields = listOf(
+            CrudField("name", "Nama Pool", existing?.name ?: "", required = true),
+            CrudField("ranges", "Ranges", existing?.ranges ?: "", required = true,
+                hint = "mis. 192.168.88.10-192.168.88.100"),
+            CrudField("next-pool", "Next Pool", existing?.nextPool ?: "", hint = "opsional"),
+            CrudField("comment", "Komentar", existing?.comment ?: "")
+        ),
+        submit = { client, v ->
+            if (edit) {
+                val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "comment" }
+                CrudRepo.set(client, "/ip/pool", existing!!.id, attrs)
+            } else {
+                CrudRepo.add(client, "/ip/pool", v.filterValues { it.isNotBlank() })
+            }
+        }
+    )
+}
+
+@Composable
+fun PoolScreen(manager: SessionManager, onBack: () -> Unit) {
+    var tick by remember { mutableStateOf(0) }
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; tick++ }, onCancel = { form = null })
+        return
+    }
+    Column {
+        SectionHeader("IP Pool", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        NeoButton("+ Tambah Pool", fill = Color.White) { form = poolForm(null) }
+        Spacer(Modifier.height(10.dp))
+        PollingCards(
+            manager = manager, resetKey = "pool", tick = tick, onChanged = { tick++ },
+            fetch = { AdvancedRepo.fetchPools(it) },
+            emptyText = "Belum ada IP pool.",
+            itemKey = { it.id }
+        ) { e, changed ->
+            NeoCard {
+                Text(e.name, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                if (e.ranges.isNotBlank()) {
+                    Text(e.ranges, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                }
+                if (e.nextPool.isNotBlank() && e.nextPool != "none") {
+                    Text("next pool: ${e.nextPool}", color = Muted, fontSize = 11.sp)
+                }
+                if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SmallButton("Edit") { form = poolForm(e) }
+                    ConfirmActionButton("Hapus", run = {
+                        manager.runNoRetry { CrudRepo.remove(it, "/ip/pool", e.id) }
+                    }, onDone = changed)
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- DHCP Client (v0.7)
+
+@Composable
+fun DhcpClientScreen(manager: SessionManager, onBack: () -> Unit) {
+    var tick by remember { mutableStateOf(0) }
+    Column {
+        SectionHeader("DHCP Client", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        PollingCards(
+            manager = manager, resetKey = "dhcp-client", tick = tick, onChanged = { tick++ },
+            fetch = { AdvancedRepo.fetchDhcpClients(it) },
+            emptyText = "Tidak ada DHCP client di router ini.",
+            itemKey = { it.id }
+        ) { e, changed ->
+            NeoCard {
+                Row {
+                    StatusDot(e.status == "bound" && !e.disabled, Modifier.padding(top = 4.dp, end = 7.dp))
+                    Column {
+                        Text(e.interfaceName, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                        if (e.address.isNotBlank()) {
+                            Text(e.address, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        val meta = buildString {
+                            if (e.status.isNotBlank()) append(e.status)
+                            if (e.gateway.isNotBlank()) append(" • gateway ${e.gateway}")
+                            if (e.expiresAfter.isNotBlank()) append(" • sisa ${e.expiresAfter}")
+                        }
+                        if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 11.sp)
+                        val meta2 = buildString {
+                            if (e.dhcpServer.isNotBlank()) append("server ${e.dhcpServer}")
+                            if (e.primaryDns.isNotBlank()) append(" • DNS ${e.primaryDns}")
+                        }
+                        if (meta2.isNotBlank()) Text(meta2, color = Muted, fontSize = 11.sp)
+                        StateTags("nonaktif" to e.disabled)
+                        if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                ConfirmActionButton(if (e.disabled) "Aktifkan" else "Nonaktifkan", run = {
+                    manager.run {
+                        CrudRepo.set(it, "/ip/dhcp-client", e.id, mapOf("disabled" to if (e.disabled) "no" else "yes"))
+                    }
+                }, onDone = changed)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ConfirmActionButton("Perbarui", run = {
+                        manager.runNoRetry { AdvancedRepo.renewDhcpClient(it, e.id) }
+                    }, onDone = changed)
+                    ConfirmActionButton("Lepaskan", run = {
+                        manager.runNoRetry { AdvancedRepo.releaseDhcpClient(it, e.id) }
+                    }, onDone = changed)
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- IP Service (v0.7)
+
+private fun serviceForm(existing: ServiceEntry): CrudFormSpec {
+    return CrudFormSpec(
+        title = "Edit Service ${existing.name}",
+        isEdit = true,
+        fields = listOf(
+            CrudField("port", "Port", existing.port, required = true),
+            CrudField("address", "Alamat Diizinkan (address)", existing.address,
+                hint = "kosong = dari semua alamat, mis. 192.168.88.0/24")
+        ),
+        submit = { client, v ->
+            val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "address" }
+            CrudRepo.set(client, "/ip/service", existing.id, attrs)
+        }
+    )
+}
+
+@Composable
+fun ServiceScreen(manager: SessionManager, onBack: () -> Unit) {
+    var tick by remember { mutableStateOf(0) }
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; tick++ }, onCancel = { form = null })
+        return
+    }
+    Column {
+        SectionHeader("IP Service", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        NeoCard(fill = MikroRed) {
+            Text(
+                "Hati-hati: menonaktifkan service api atau mengubah port-nya bisa memutus " +
+                    "koneksi MikroKu ke router ini.",
+                color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        PollingCards(
+            manager = manager, resetKey = "ip-service", tick = tick, onChanged = { tick++ },
+            fetch = { AdvancedRepo.fetchServices(it) },
+            emptyText = "Tidak ada service.",
+            itemKey = { it.id }
+        ) { e, changed ->
+            NeoCard {
+                Row {
+                    StatusDot(!e.disabled, Modifier.padding(top = 4.dp, end = 7.dp))
+                    Column {
+                        Text(e.name, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                        val meta = buildString {
+                            if (e.port.isNotBlank()) append("port ${e.port}")
+                            if (e.address.isNotBlank()) append(" • dari ${e.address}")
+                        }
+                        if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 11.sp)
+                        StateTags("nonaktif" to e.disabled)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                ConfirmActionButton(if (e.disabled) "Aktifkan" else "Nonaktifkan", run = {
+                    manager.run {
+                        CrudRepo.set(it, "/ip/service", e.id, mapOf("disabled" to if (e.disabled) "no" else "yes"))
+                    }
+                }, onDone = changed)
+                Spacer(Modifier.height(8.dp))
+                SmallButton("Edit Port / Alamat") { form = serviceForm(e) }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Neighbors (v0.7)
+
+@Composable
+fun NeighborScreen(manager: SessionManager, onBack: () -> Unit) {
+    var tick by remember { mutableStateOf(0) }
+    Column {
+        SectionHeader("Neighbors", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        PollingCards(
+            manager = manager, resetKey = "neighbor", tick = tick, onChanged = { tick++ },
+            fetch = { AdvancedRepo.fetchNeighbors(it) },
+            emptyText = "Belum ada neighbor terdeteksi.",
+            itemKey = { it.id.ifBlank { (it.address + it.macAddress).hashCode().toString() } }
+        ) { e, _ ->
+            NeoCard {
+                Text(
+                    e.identity.ifBlank { e.address.ifBlank { "-" } },
+                    fontWeight = FontWeight.Black, fontSize = 15.sp
+                )
+                val line1 = buildString {
+                    if (e.address.isNotBlank()) append(e.address)
+                    if (e.macAddress.isNotBlank()) append(" • ${e.macAddress}")
+                }
+                if (line1.isNotBlank()) Text(line1, color = Muted, fontSize = 11.sp)
+                val line2 = buildString {
+                    if (e.interfaceName.isNotBlank()) append("via ${e.interfaceName}")
+                    if (e.board.isNotBlank()) append(" • ${e.board}")
+                    if (e.version.isNotBlank()) append(" • ROS ${e.version}")
+                    if (e.uptime.isNotBlank()) append(" • uptime ${e.uptime}")
+                }
+                if (line2.isNotBlank()) Text(line2, color = Muted, fontSize = 11.sp)
+            }
+        }
     }
 }

@@ -174,4 +174,63 @@ object SystemRepo {
         withContext(Dispatchers.IO) { synchronized(client) {
             client.runCommand("/export", "=file=$name")
         } }
+
+    // ------------------------------------------------------------ v0.7: jam & NTP
+
+    suspend fun fetchClock(client: MikrotikClient): ClockInfo =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            val r = client.run("/system/clock/print").firstOrNull() ?: emptyMap()
+            ClockInfo(
+                time = r["time"] ?: "",
+                date = r["date"] ?: "",
+                timeZoneName = r["time-zone-name"] ?: "",
+                dstActive = r["dst-active"] == "true"
+            )
+        } }
+
+    suspend fun fetchNtpClient(client: MikrotikClient): NtpInfo =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            val r = client.run("/system/ntp/client/print").firstOrNull() ?: emptyMap()
+            NtpInfo(
+                enabled = r["enabled"] == "true",
+                mode = r["mode"] ?: "",
+                primaryNtp = r["primary-ntp"] ?: "",
+                secondaryNtp = r["secondary-ntp"] ?: "",
+                status = r["status"] ?: "",
+                activeServer = r["active-server"] ?: ""
+            )
+        } }
+
+    suspend fun setClockTimezone(client: MikrotikClient, timeZoneName: String) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/system/clock/set", "=time-zone-name=$timeZoneName")
+        } }
+
+    suspend fun setNtpClient(
+        client: MikrotikClient,
+        enabled: Boolean,
+        primaryNtp: String,
+        secondaryNtp: String
+    ) = withContext(Dispatchers.IO) { synchronized(client) {
+        val words = mutableListOf("=enabled=${if (enabled) "yes" else "no"}")
+        if (primaryNtp.isNotBlank()) words += "=primary-ntp=$primaryNtp"
+        if (secondaryNtp.isNotBlank()) words += "=secondary-ntp=$secondaryNtp"
+        client.runCommand("/system/ntp/client/set", *words.toTypedArray())
+    } }
 }
+
+data class ClockInfo(
+    val time: String,
+    val date: String,
+    val timeZoneName: String,
+    val dstActive: Boolean
+)
+
+data class NtpInfo(
+    val enabled: Boolean,
+    val mode: String,
+    val primaryNtp: String,
+    val secondaryNtp: String,
+    val status: String,
+    val activeServer: String
+)

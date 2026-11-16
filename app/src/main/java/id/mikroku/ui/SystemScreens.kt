@@ -2,6 +2,8 @@ package id.mikroku.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -71,6 +73,8 @@ fun SystemScreen(manager: SessionManager, onBack: () -> Unit) {
 private fun IdentitySection(manager: SessionManager, tick: Int) {
     var localTick by remember { mutableStateOf(0) }
     var data by remember { mutableStateOf<DashboardData?>(null) }
+    var clock by remember { mutableStateOf<id.mikroku.data.ClockInfo?>(null) }
+    var ntp by remember { mutableStateOf<id.mikroku.data.NtpInfo?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var form by remember { mutableStateOf<CrudFormSpec?>(null) }
     val f = form
@@ -85,8 +89,10 @@ private fun IdentitySection(manager: SessionManager, tick: Int) {
         } catch (e: Exception) {
             error = friendlyError(e)
         }
+        clock = try { manager.run { SystemRepo.fetchClock(it) } } catch (e: Exception) { null }
+        ntp = try { manager.run { SystemRepo.fetchNtpClient(it) } } catch (e: Exception) { null }
     }
-    Column {
+    Column(Modifier.verticalScroll(rememberScrollState())) {
         error?.let {
             Text(it, color = MikroRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
@@ -114,6 +120,69 @@ private fun IdentitySection(manager: SessionManager, tick: Int) {
                         SystemRepo.setIdentity(client, (v["name"] ?: "").trim())
                     }
                 )
+            }
+            clock?.let { c ->
+                Spacer(Modifier.height(10.dp))
+                NeoCard {
+                    Text("JAM ROUTER", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Muted)
+                    Text("${c.time} • ${c.date}", fontWeight = FontWeight.Black, fontSize = 15.sp)
+                    Text(
+                        "Zona waktu: ${c.timeZoneName.ifBlank { "-" }}${if (c.dstActive) " (DST aktif)" else ""}",
+                        color = Muted, fontSize = 12.sp
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                NeoButton("Edit Zona Waktu", fill = Color.White) {
+                    form = CrudFormSpec(
+                        title = "Edit Zona Waktu",
+                        isEdit = true,
+                        fields = listOf(
+                            CrudField("time-zone-name", "Zona Waktu", c.timeZoneName, required = true,
+                                hint = "mis. Asia/Jakarta, Asia/Makassar, Asia/Jayapura")
+                        ),
+                        submit = { client, v ->
+                            SystemRepo.setClockTimezone(client, (v["time-zone-name"] ?: "").trim())
+                        }
+                    )
+                }
+            }
+            ntp?.let { n ->
+                Spacer(Modifier.height(10.dp))
+                NeoCard {
+                    Text("NTP CLIENT", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Muted)
+                    Text(
+                        if (n.enabled) "Aktif • ${n.status.ifBlank { "-" }}" else "Nonaktif",
+                        fontWeight = FontWeight.Black, fontSize = 15.sp
+                    )
+                    val meta = buildString {
+                        if (n.primaryNtp.isNotBlank()) append("utama ${n.primaryNtp}")
+                        if (n.secondaryNtp.isNotBlank()) append(" • cadangan ${n.secondaryNtp}")
+                        if (n.activeServer.isNotBlank()) append(" • server aktif ${n.activeServer}")
+                    }
+                    if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(10.dp))
+                NeoButton("Edit NTP", fill = Color.White) {
+                    form = CrudFormSpec(
+                        title = "Edit NTP Client",
+                        isEdit = true,
+                        fields = listOf(
+                            CrudField("enabled", "NTP Aktif", if (n.enabled) "yes" else "no",
+                                options = listOf("yes", "no")),
+                            CrudField("primary-ntp", "Server NTP Utama", n.primaryNtp,
+                                hint = "mis. id.pool.ntp.org atau 202.162.32.12"),
+                            CrudField("secondary-ntp", "Server NTP Cadangan", n.secondaryNtp)
+                        ),
+                        submit = { client, v ->
+                            SystemRepo.setNtpClient(
+                                client,
+                                v["enabled"] == "yes",
+                                (v["primary-ntp"] ?: "").trim(),
+                                (v["secondary-ntp"] ?: "").trim()
+                            )
+                        }
+                    )
+                }
             }
         }
     }

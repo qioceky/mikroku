@@ -59,6 +59,10 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
         Triple("bridge", "Bridge", "Bridge dan port-portnya"),
         Triple("vlan", "VLAN", "Interface VLAN 802.1Q"),
         Triple("dns", "DNS", "Server DNS, entri static, dan cache"),
+        Triple("pool", "IP Pool", "Kumpulan alamat untuk DHCP/hotspot/PPP"),
+        Triple("dhcp-client", "DHCP Client", "IP dari ISP, gateway, dan statusnya"),
+        Triple("service", "IP Service", "Service router: api, winbox, www, ssh"),
+        Triple("neighbor", "Neighbors", "Perangkat MikroTik lain yang terdeteksi"),
         Triple("konsol", "Konsol API", "Jalankan perintah API mentah")
     )
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -97,6 +101,10 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "bridge" -> BridgeScreen(manager, onBack)
         "vlan" -> VlanScreen(manager, onBack)
         "dns" -> DnsScreen(manager, onBack)
+        "pool" -> PoolScreen(manager, onBack)
+        "dhcp-client" -> DhcpClientScreen(manager, onBack)
+        "service" -> ServiceScreen(manager, onBack)
+        "neighbor" -> NeighborScreen(manager, onBack)
         "konsol" -> ConsoleScreen(manager, onBack)
         else -> IpAddressScreen(manager, onBack)
     }
