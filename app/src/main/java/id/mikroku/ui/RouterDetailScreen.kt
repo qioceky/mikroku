@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -102,39 +103,62 @@ fun RouterDetailScreen(
             }
             !connected -> Text("Menyambungkan ke ${profile.host}…", fontWeight = FontWeight.Bold)
             else -> {
-                Column {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TabChip("Dashboard", Fa.GAUGE, tab == 0, Modifier.weight(1f)) { tab = 0 }
-                        TabChip("Interface", Fa.NETWORK_WIRED, tab == 1, Modifier.weight(1f)) { tab = 1 }
-                        TabChip("Menu", Fa.GRIP, tab == 2, Modifier.weight(1f)) { tab = 2 }
+                Box(Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxSize().padding(bottom = 86.dp)) {
+                        when (tab) {
+                            0 -> DashboardTab(manager, profile)
+                            1 -> InterfacesTab(manager)
+                            else -> NetworkMenuGrid { section = it }
+                        }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    when (tab) {
-                        0 -> DashboardTab(manager, profile)
-                        1 -> InterfacesTab(manager)
-                        else -> NetworkMenuGrid { section = it }
-                    }
+                    FloatingNavBar(
+                        tab = tab,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp)
+                    ) { tab = it }
                 }
             }
         }
     }
 }
 
+/** Navbar mengambang di bawah layar: pil neobrutal berisi 3 tab utama. */
 @Composable
-private fun TabChip(text: String, icon: String, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (active) MikroYellow else CardFill)
-            .border(2.5.dp, Ink, RoundedCornerShape(10.dp))
-            .clickable { onClick() }
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FaIcon(icon, Modifier.padding(end = 6.dp), size = 13.sp)
-            Text(text, fontWeight = FontWeight.Black, fontSize = 14.sp)
+private fun FloatingNavBar(tab: Int, modifier: Modifier = Modifier, onSelect: (Int) -> Unit) {
+    Box(modifier.padding(end = 4.dp, bottom = 4.dp)) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .offset(x = 4.dp, y = 4.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Shadow)
+        )
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(22.dp))
+                .background(CardFill)
+                .border(2.5.dp, Ink, RoundedCornerShape(22.dp))
+                .padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            NavBarItem(Fa.GAUGE, "Dashboard", tab == 0) { onSelect(0) }
+            NavBarItem(Fa.NETWORK_WIRED, "Interface", tab == 1) { onSelect(1) }
+            NavBarItem(Fa.GRIP, "Menu", tab == 2) { onSelect(2) }
         }
+    }
+}
+
+@Composable
+private fun NavBarItem(icon: String, label: String, active: Boolean, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (active) MikroYellow else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 18.dp, vertical = 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        FaIcon(icon, size = 17.sp)
+        Text(label, fontWeight = FontWeight.Black, fontSize = 11.sp)
     }
 }
 
