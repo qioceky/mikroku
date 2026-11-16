@@ -52,7 +52,8 @@ fun RouterDetailScreen(
     var connected by remember { mutableStateOf(false) }
     var connectError by remember { mutableStateOf<String?>(null) }
     var connectAttempt by remember { mutableStateOf(0) }
-    var tab by remember { mutableStateOf(0) } // 0 dashboard, 1 interface
+    var tab by remember { mutableStateOf(0) } // 0 dashboard, 1 interface, 2 menu
+    var section by remember { mutableStateOf<String?>(null) } // sub-layar dari menu
 
     LaunchedEffect(profile.id, connectAttempt) {
         connectError = null
@@ -93,13 +94,22 @@ fun RouterDetailScreen(
             }
             !connected -> Text("Menyambungkan ke ${profile.host}…", fontWeight = FontWeight.Bold)
             else -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TabChip("Dashboard", tab == 0, Modifier.weight(1f)) { tab = 0 }
-                    TabChip("Interface", tab == 1, Modifier.weight(1f)) { tab = 1 }
+                val sec = section
+                if (sec != null) {
+                    NetworkSectionScreen(sec, manager) { section = null }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TabChip("Dashboard", tab == 0, Modifier.weight(1f)) { tab = 0 }
+                        TabChip("Interface", tab == 1, Modifier.weight(1f)) { tab = 1 }
+                        TabChip("Menu", tab == 2, Modifier.weight(1f)) { tab = 2 }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    when (tab) {
+                        0 -> DashboardTab(manager, profile)
+                        1 -> InterfacesTab(manager)
+                        else -> NetworkMenuGrid { section = it }
+                    }
                 }
-                Spacer(Modifier.height(12.dp))
-                if (tab == 0) DashboardTab(manager, profile)
-                else InterfacesTab(manager)
             }
         }
     }
@@ -361,9 +371,14 @@ private fun InterfacesTab(manager: SessionManager) {
 }
 
 /** Ubah pesan error teknis menjadi Bahasa Indonesia yang ramah. */
-private fun friendlyError(e: Exception): String {
+fun friendlyError(e: Exception): String {
+    val raw = e.message ?: return "Terjadi kesalahan tak dikenal"
+    if (raw.contains("not enough permissions", ignoreCase = true)) {
+        return "Izin kurang: user API ini tidak punya policy write. " +
+            "Fitur ubah data perlu user dengan policy read,write,api."
+    }
     if (e is ApiTrapException) return e.trapMessage
-    val msg = e.message ?: return "Terjadi kesalahan tak dikenal"
+    val msg = raw
     return when {
         msg.contains("Broken pipe", ignoreCase = true) ||
             msg.contains("Connection reset", ignoreCase = true) ||
