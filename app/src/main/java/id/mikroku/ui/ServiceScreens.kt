@@ -3,6 +3,8 @@ package id.mikroku.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,12 +44,15 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 @Composable
-private fun KindChips(
+fun KindChips(
     options: List<Pair<String, String>>,
     selected: String,
     onSelect: (String) -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         for ((k, label) in options) {
             Box(
                 Modifier

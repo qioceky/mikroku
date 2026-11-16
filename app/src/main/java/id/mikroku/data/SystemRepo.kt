@@ -1,0 +1,177 @@
+package id.mikroku.data
+
+import id.mikroku.api.MikrotikClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+data class RouterUserEntry(
+    val id: String,
+    val name: String,
+    val group: String,
+    val address: String,
+    val lastLoggedIn: String,
+    val disabled: Boolean,
+    val comment: String
+)
+
+data class UserGroupEntry(
+    val id: String,
+    val name: String,
+    val policy: String
+)
+
+data class SchedulerEntry(
+    val id: String,
+    val name: String,
+    val startDate: String,
+    val startTime: String,
+    val interval: String,
+    val nextRun: String,
+    val runCount: String,
+    val onEvent: String,
+    val disabled: Boolean,
+    val comment: String
+)
+
+data class ScriptEntry(
+    val id: String,
+    val name: String,
+    val owner: String,
+    val lastStarted: String,
+    val runCount: String,
+    val source: String,
+    val disabled: Boolean,
+    val comment: String
+)
+
+data class LogEntry(
+    val id: String,
+    val time: String,
+    val topics: String,
+    val message: String
+)
+
+data class FileEntry(
+    val id: String,
+    val name: String,
+    val type: String,
+    val size: Long,
+    val creationTime: String
+)
+
+/** Repo administrasi sistem (v0.5). */
+object SystemRepo {
+
+    suspend fun fetchUsers(client: MikrotikClient): List<RouterUserEntry> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/user/print").map { r ->
+                RouterUserEntry(
+                    id = r[".id"] ?: r["name"] ?: "",
+                    name = r["name"] ?: "-",
+                    group = r["group"] ?: "",
+                    address = r["address"] ?: "",
+                    lastLoggedIn = r["last-logged-in"] ?: "",
+                    disabled = r["disabled"] == "true",
+                    comment = r["comment"] ?: ""
+                )
+            }
+        } }
+
+    suspend fun fetchGroups(client: MikrotikClient): List<UserGroupEntry> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/user/group/print").map { r ->
+                UserGroupEntry(
+                    id = r[".id"] ?: r["name"] ?: "",
+                    name = r["name"] ?: "-",
+                    policy = r["policy"] ?: ""
+                )
+            }
+        } }
+
+    suspend fun fetchSchedulers(client: MikrotikClient): List<SchedulerEntry> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/system/scheduler/print").map { r ->
+                SchedulerEntry(
+                    id = r[".id"] ?: r["name"] ?: "",
+                    name = r["name"] ?: "-",
+                    startDate = r["start-date"] ?: "",
+                    startTime = r["start-time"] ?: "",
+                    interval = r["interval"] ?: "",
+                    nextRun = r["next-run"] ?: "",
+                    runCount = r["run-count"] ?: "",
+                    onEvent = r["on-event"] ?: "",
+                    disabled = r["disabled"] == "true",
+                    comment = r["comment"] ?: ""
+                )
+            }
+        } }
+
+    suspend fun runScheduler(client: MikrotikClient, schedulerId: String) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/system/scheduler/run", "=.id=$schedulerId")
+        } }
+
+    suspend fun fetchScripts(client: MikrotikClient): List<ScriptEntry> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/system/script/print").map { r ->
+                ScriptEntry(
+                    id = r[".id"] ?: r["name"] ?: "",
+                    name = r["name"] ?: "-",
+                    owner = r["owner"] ?: "",
+                    lastStarted = r["last-started"] ?: "",
+                    runCount = r["run-count"] ?: "",
+                    source = r["source"] ?: "",
+                    disabled = r["disabled"] == "true",
+                    comment = r["comment"] ?: ""
+                )
+            }
+        } }
+
+    suspend fun runScript(client: MikrotikClient, scriptId: String) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/system/script/run", "=.id=$scriptId")
+        } }
+
+    /** Log terbaru dulu, dibatasi [limit] entri terakhir. */
+    suspend fun fetchLogs(client: MikrotikClient, limit: Int = 100): List<LogEntry> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/log/print").takeLast(limit).reversed().map { r ->
+                LogEntry(
+                    id = r[".id"] ?: "",
+                    time = r["time"] ?: "",
+                    topics = r["topics"] ?: "",
+                    message = r["message"] ?: ""
+                )
+            }
+        } }
+
+    suspend fun fetchFiles(client: MikrotikClient): List<FileEntry> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/file/print").map { r ->
+                FileEntry(
+                    id = r[".id"] ?: r["name"] ?: "",
+                    name = r["name"] ?: "-",
+                    type = r["type"] ?: "",
+                    size = r["size"]?.toLongOrNull() ?: 0L,
+                    creationTime = r["creation-time"] ?: ""
+                )
+            }
+        } }
+
+    suspend fun setIdentity(client: MikrotikClient, name: String) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/system/identity/set", "=name=$name")
+        } }
+
+    /** Buat file backup biner <name>.backup di router. */
+    suspend fun createBackup(client: MikrotikClient, name: String) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/system/backup/save", "=name=$name")
+        } }
+
+    /** Buat file export konfigurasi <name>.rsc di router. */
+    suspend fun createExport(client: MikrotikClient, name: String) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/export", "=file=$name")
+        } }
+}

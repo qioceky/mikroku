@@ -54,6 +54,7 @@ fun NetworkMenuGrid(onOpen: (String) -> Unit) {
         Triple("pppoe", "PPPoE", "Secret PPP + sesi aktif"),
         Triple("queue", "Queue", "Simple queue + queue tree"),
         Triple("tools", "Tools", "Ping & traceroute dari router"),
+        Triple("sistem", "Sistem", "User, scheduler, script, log, file, backup"),
         Triple("dns", "DNS", "Server DNS, entri static, dan cache")
     )
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -87,6 +88,7 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "pppoe" -> PppScreen(manager, onBack)
         "queue" -> QueueScreen(manager, onBack)
         "tools" -> ToolsScreen(manager, onBack)
+        "sistem" -> SystemScreen(manager, onBack)
         "dns" -> DnsScreen(manager, onBack)
         else -> IpAddressScreen(manager, onBack)
     }
