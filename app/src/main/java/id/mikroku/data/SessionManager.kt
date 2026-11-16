@@ -31,6 +31,9 @@ class SessionManager(
     /** Klien aktif; menyambung dulu bila belum ada sesi. */
     suspend fun client(): MikrotikClient = ensure().client
 
+    /** Profil koneksi — dipakai transfer file SFTP (kredensial yang sama). */
+    fun connectionProfile(): RouterProfile = profile
+
     /**
      * Jalankan [block] dengan klien aktif. Pada kegagalan koneksi,
      * sambung ulang dan ulangi [block] satu kali.

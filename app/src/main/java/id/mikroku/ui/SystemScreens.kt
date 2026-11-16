@@ -1,5 +1,10 @@
 package id.mikroku.ui
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,6 +38,7 @@ import id.mikroku.data.RouterUserEntry
 import id.mikroku.data.SchedulerEntry
 import id.mikroku.data.ScriptEntry
 import id.mikroku.data.SessionManager
+import id.mikroku.data.SftpRepo
 import id.mikroku.data.SystemRepo
 import kotlinx.coroutines.launch
 
@@ -507,34 +514,190 @@ private fun fileRenameForm(existing: FileEntry): CrudFormSpec =
         }
     )
 
+private fun queryDisplayName(context: Context, uri: Uri): String? =
+    try {
+        context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+            val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+private fun sftpFriendlyError(e: Exception): String {
+    val raw = e.message ?: return "Transfer file gagal"
+    return when {
+        raw.contains("auth", ignoreCase = true) ||
+            raw.contains("password", ignoreCase = true) ->
+            "Login SSH ditolak — periksa username/password; grup user perlu policy ssh + ftp " +
+                "(grup full bawaan sudah termasuk)."
+        raw.contains("permission", ignoreCase = true) ||
+            raw.contains("denied", ignoreCase = true) ->
+            "Izin transfer ditolak router — grup user perlu policy ftp untuk SFTP."
+        raw.contains("connect", ignoreCase = true) ||
+            raw.contains("refused", ignoreCase = true) ||
+            raw.contains("timed out", ignoreCase = true) ||
+            raw.contains("timeout", ignoreCase = true) ->
+            "Tidak bisa menjangkau SSH router (port 22) — pastikan service ssh aktif " +
+                "di IP → Services."
+        else -> friendlyError(e)
+    }
+}
+
 @Composable
 private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Unit) {
     var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val profile = remember(manager) { manager.connectionProfile() }
+
+    var pendingDownload by remember { mutableStateOf<FileEntry?>(null) }
+    val downloadLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*")
+    ) { uri ->
+        val entry = pendingDownload
+        pendingDownload = null
+        if (uri != null && entry != null && !busy) {
+            scope.launch {
+                busy = true
+                msg = null
+                try {
+                    val out = context.contentResolver.openOutputStream(uri)
+                        ?: throw IllegalStateException("Tidak bisa membuka file tujuan di HP")
+                    out.use { SftpRepo.download(profile, entry.name, it) }
+                    msg = "Terunduh ke HP: ${entry.name}"
+                } catch (e: Exception) {
+                    msg = sftpFriendlyError(e)
+                }
+                busy = false
+            }
+        }
+    }
+
+    var uploadTarget by remember { mutableStateOf<String?>(null) }
+    var pickedUpload by remember { mutableStateOf<Uri?>(null) }
+    var pickedName by remember { mutableStateOf("") }
+    val uploadLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            pickedUpload = uri
+            pickedName = queryDisplayName(context, uri) ?: "file-unggahan"
+        }
+    }
+
+    fun doUpload() {
+        val uri = pickedUpload ?: return
+        val remoteName = uploadTarget ?: pickedName
+        if (busy || remoteName.isBlank()) return
+        scope.launch {
+            busy = true
+            msg = null
+            try {
+                val input = context.contentResolver.openInputStream(uri)
+                    ?: throw IllegalStateException("Tidak bisa membaca file pilihan dari HP")
+                input.use { SftpRepo.upload(profile, it, remoteName) }
+                msg = "Terunggah ke router: $remoteName"
+                pickedUpload = null
+                uploadTarget = null
+                onChanged()
+            } catch (e: Exception) {
+                msg = sftpFriendlyError(e)
+            }
+            busy = false
+        }
+    }
+
     val f = form
     if (f != null) {
         CrudFormScreen(f, manager, onDone = { form = null; onChanged() }, onCancel = { form = null })
         return
     }
-    PollingCards(
-        manager = manager, resetKey = "sys-file", tick = tick, onChanged = onChanged,
-        fetch = { SystemRepo.fetchFiles(it) },
-        emptyText = "Tidak ada file.",
-        itemKey = { it.id }
-    ) { e, changed ->
+
+    Column {
         NeoCard {
-            Text(e.name, fontWeight = FontWeight.Black, fontSize = 14.sp)
-            val meta = buildString {
-                if (e.type.isNotBlank()) append(e.type)
-                append(" • ${formatBytes(e.size)}")
-                if (e.creationTime.isNotBlank()) append(" • ${e.creationTime}")
+            Text(
+                "Unduh/unggah berjalan lewat SFTP (service SSH router, port 22) dengan " +
+                    "username & password yang sama. Grup user perlu policy ssh + ftp.",
+                fontWeight = FontWeight.Bold, fontSize = 12.sp
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        NeoButton("+ Unggah File ke Router", fill = Color.White, enabled = !busy) {
+            uploadTarget = null
+            uploadLauncher.launch(arrayOf("*/*"))
+        }
+        pickedUpload?.let {
+            Spacer(Modifier.height(10.dp))
+            NeoCard {
+                val target = uploadTarget
+                Text(
+                    if (target != null) {
+                        "Ganti isi file \"$target\" dengan \"$pickedName\"? Isi lama tertimpa."
+                    } else {
+                        "Unggah \"$pickedName\" ke router?"
+                    },
+                    fontWeight = FontWeight.Black, fontSize = 13.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SmallButton("Batal") { pickedUpload = null; uploadTarget = null }
+                    SmallButton(
+                        if (target != null) "Ya, Ganti" else "Ya, Unggah",
+                        fill = MikroRed, textColor = Color.White
+                    ) { doUpload() }
+                }
             }
-            Text(meta, color = Muted, fontSize = 11.sp)
+        }
+        if (busy) {
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SmallButton("Ganti Nama") { form = fileRenameForm(e) }
-                ConfirmActionButton("Hapus", run = {
-                    manager.runNoRetry { CrudRepo.remove(it, "/file", e.id) }
-                }, onDone = changed)
+            Text("Mentransfer file…", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+        msg?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        PollingCards(
+            manager = manager, resetKey = "sys-file", tick = tick, onChanged = onChanged,
+            fetch = { SystemRepo.fetchFiles(it) },
+            emptyText = "Tidak ada file.",
+            itemKey = { it.id }
+        ) { e, changed ->
+            NeoCard {
+                Text(e.name, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                val meta = buildString {
+                    if (e.type.isNotBlank()) append(e.type)
+                    append(" • ${formatBytes(e.size)}")
+                    if (e.creationTime.isNotBlank()) append(" • ${e.creationTime}")
+                }
+                Text(meta, color = Muted, fontSize = 11.sp)
+                Spacer(Modifier.height(8.dp))
+                if (e.type != "directory") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallButton("Unduh") {
+                            if (!busy) {
+                                pendingDownload = e
+                                downloadLauncher.launch(e.name)
+                            }
+                        }
+                        SmallButton("Ganti File") {
+                            if (!busy) {
+                                uploadTarget = e.name
+                                uploadLauncher.launch(arrayOf("*/*"))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SmallButton("Ganti Nama") { form = fileRenameForm(e) }
+                    ConfirmActionButton("Hapus", run = {
+                        manager.runNoRetry { CrudRepo.remove(it, "/file", e.id) }
+                    }, onDone = changed)
+                }
             }
         }
     }
