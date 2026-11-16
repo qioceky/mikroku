@@ -31,8 +31,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.mikroku.api.MikrotikClient
+import id.mikroku.data.CrudRepo
+import id.mikroku.data.HotspotUserEntry
+import id.mikroku.data.PppSecretEntry
 import id.mikroku.data.ServiceRepo
 import id.mikroku.data.SessionManager
+import id.mikroku.data.SimpleQueueEntry
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -61,7 +65,7 @@ private fun KindChips(
 
 /** Tombol aksi tulis dengan konfirmasi dua langkah + pesan hasil. */
 @Composable
-private fun ConfirmActionButton(
+fun ConfirmActionButton(
     label: String,
     run: suspend () -> Unit,
     onDone: () -> Unit
@@ -100,7 +104,7 @@ private fun ConfirmActionButton(
  * [resetKey] mengganti isi (mis. pindah sub-tab); [tick] memicu muat ulang.
  */
 @Composable
-private fun <T> PollingCards(
+fun <T> PollingCards(
     manager: SessionManager,
     resetKey: Any,
     tick: Int,
@@ -147,10 +151,40 @@ private fun <T> PollingCards(
 
 // ---------------- Hotspot ----------------
 
+private fun hotspotUserForm(existing: HotspotUserEntry?): CrudFormSpec {
+    val edit = existing != null
+    return CrudFormSpec(
+        title = if (edit) "Edit User Hotspot" else "Tambah User Hotspot",
+        isEdit = edit,
+        fields = listOf(
+            CrudField("name", "Username", existing?.name ?: "", required = true),
+            CrudField("password", "Password", "",
+                hint = if (edit) "Kosongkan bila tidak diubah" else "Boleh kosong",
+                skipBlankOnEdit = true),
+            CrudField("profile", "Profil", existing?.profile ?: "", hint = "kosong = profil default"),
+            CrudField("comment", "Komentar", existing?.comment ?: "")
+        ),
+        submit = { client, v ->
+            if (edit) {
+                val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "comment" }
+                CrudRepo.set(client, "/ip/hotspot/user", existing!!.id, attrs)
+            } else {
+                CrudRepo.add(client, "/ip/hotspot/user", v.filterValues { it.isNotBlank() })
+            }
+        }
+    )
+}
+
 @Composable
 fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
     var kind by remember { mutableStateOf("aktif") }
     var tick by remember { mutableStateOf(0) }
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; tick++ }, onCancel = { form = null })
+        return
+    }
     Column {
         SectionHeader("Hotspot", onBack) { tick++ }
         Spacer(Modifier.height(10.dp))
@@ -182,7 +216,10 @@ fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
                     }
                 }
             }
-            "user" -> PollingCards(
+            "user" -> Column {
+                NeoButton("+ Tambah User", fill = Color.White) { form = hotspotUserForm(null) }
+                Spacer(Modifier.height(10.dp))
+                PollingCards(
                 manager = manager, resetKey = "hs-user", tick = tick, onChanged = { tick++ },
                 fetch = { ServiceRepo.fetchHotspotUsers(it) },
                 emptyText = "Belum ada user hotspot.",
@@ -210,7 +247,15 @@ fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
                     ConfirmActionButton(if (e.disabled) "Aktifkan" else "Nonaktifkan", run = {
                         manager.run { ServiceRepo.setHotspotUserDisabled(it, e.id, !e.disabled) }
                     }, onDone = onChanged)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallButton("Edit") { form = hotspotUserForm(e) }
+                        ConfirmActionButton("Hapus", run = {
+                            manager.runNoRetry { CrudRepo.remove(it, "/ip/hotspot/user", e.id) }
+                        }, onDone = onChanged)
+                    }
                 }
+            }
             }
             else -> PollingCards(
                 manager = manager, resetKey = "hs-aktif", tick = tick, onChanged = { tick++ },
@@ -248,17 +293,54 @@ fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
 
 // ---------------- PPPoE / PPP ----------------
 
+private fun pppSecretForm(existing: PppSecretEntry?): CrudFormSpec {
+    val edit = existing != null
+    return CrudFormSpec(
+        title = if (edit) "Edit PPP Secret" else "Tambah PPP Secret",
+        isEdit = edit,
+        fields = listOf(
+            CrudField("name", "Username", existing?.name ?: "", required = true),
+            CrudField("password", "Password", "",
+                hint = if (edit) "Kosongkan bila tidak diubah" else "Boleh kosong",
+                skipBlankOnEdit = true),
+            CrudField("service", "Service", existing?.service ?: "any",
+                options = listOf("any", "pppoe", "pptp", "l2tp", "sstp", "ovpn")),
+            CrudField("profile", "Profil", existing?.profile ?: "", hint = "kosong = profil default"),
+            CrudField("remote-address", "Remote Address", existing?.remoteAddress ?: "",
+                hint = "IP tetap untuk user ini (opsional)"),
+            CrudField("comment", "Komentar", existing?.comment ?: "")
+        ),
+        submit = { client, v ->
+            if (edit) {
+                val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "comment" }
+                CrudRepo.set(client, "/ppp/secret", existing!!.id, attrs)
+            } else {
+                CrudRepo.add(client, "/ppp/secret", v.filterValues { it.isNotBlank() })
+            }
+        }
+    )
+}
+
 @Composable
 fun PppScreen(manager: SessionManager, onBack: () -> Unit) {
     var kind by remember { mutableStateOf("aktif") }
     var tick by remember { mutableStateOf(0) }
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; tick++ }, onCancel = { form = null })
+        return
+    }
     Column {
         SectionHeader("PPPoE / PPP", onBack) { tick++ }
         Spacer(Modifier.height(10.dp))
         KindChips(listOf("aktif" to "Sesi Aktif", "secret" to "Secret"), kind) { kind = it }
         Spacer(Modifier.height(10.dp))
         if (kind == "secret") {
-            PollingCards(
+            Column {
+                NeoButton("+ Tambah Secret", fill = Color.White) { form = pppSecretForm(null) }
+                Spacer(Modifier.height(10.dp))
+                PollingCards(
                 manager = manager, resetKey = "ppp-secret", tick = tick, onChanged = { tick++ },
                 fetch = { ServiceRepo.fetchPppSecrets(it) },
                 emptyText = "Belum ada PPP secret.",
@@ -286,7 +368,15 @@ fun PppScreen(manager: SessionManager, onBack: () -> Unit) {
                     ConfirmActionButton(if (e.disabled) "Aktifkan" else "Nonaktifkan", run = {
                         manager.run { ServiceRepo.setPppSecretDisabled(it, e.id, !e.disabled) }
                     }, onDone = onChanged)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallButton("Edit") { form = pppSecretForm(e) }
+                        ConfirmActionButton("Hapus", run = {
+                            manager.runNoRetry { CrudRepo.remove(it, "/ppp/secret", e.id) }
+                        }, onDone = onChanged)
+                    }
                 }
+            }
             }
         } else {
             PollingCards(
@@ -324,10 +414,41 @@ fun PppScreen(manager: SessionManager, onBack: () -> Unit) {
 
 // ---------------- Queue ----------------
 
+private fun simpleQueueForm(existing: SimpleQueueEntry?): CrudFormSpec {
+    val edit = existing != null
+    return CrudFormSpec(
+        title = if (edit) "Edit Simple Queue" else "Tambah Simple Queue",
+        isEdit = edit,
+        fields = listOf(
+            CrudField("name", "Nama", existing?.name ?: "", required = true),
+            CrudField("target", "Target", existing?.target ?: "", required = true,
+                hint = "IP/subnet (mis. 192.168.88.0/24) atau nama interface"),
+            CrudField("max-limit", "Max Limit (naik/turun)",
+                existing?.maxLimit?.takeIf { it != "0/0" } ?: "",
+                hint = "mis. 1M/2M — kosong = tanpa batas"),
+            CrudField("comment", "Komentar", existing?.comment ?: "")
+        ),
+        submit = { client, v ->
+            if (edit) {
+                val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "comment" }
+                CrudRepo.set(client, "/queue/simple", existing!!.id, attrs)
+            } else {
+                CrudRepo.add(client, "/queue/simple", v.filterValues { it.isNotBlank() })
+            }
+        }
+    )
+}
+
 @Composable
 fun QueueScreen(manager: SessionManager, onBack: () -> Unit) {
     var kind by remember { mutableStateOf("simple") }
     var tick by remember { mutableStateOf(0) }
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; tick++ }, onCancel = { form = null })
+        return
+    }
     Column {
         SectionHeader("Queue", onBack) { tick++ }
         Spacer(Modifier.height(10.dp))
@@ -363,7 +484,10 @@ fun QueueScreen(manager: SessionManager, onBack: () -> Unit) {
                 }
             }
         } else {
-            PollingCards(
+            Column {
+                NeoButton("+ Tambah Queue", fill = Color.White) { form = simpleQueueForm(null) }
+                Spacer(Modifier.height(10.dp))
+                PollingCards(
                 manager = manager, resetKey = "q-simple", tick = tick, onChanged = { tick++ },
                 fetch = { ServiceRepo.fetchSimpleQueues(it) },
                 emptyText = "Belum ada simple queue.",
@@ -402,8 +526,16 @@ fun QueueScreen(manager: SessionManager, onBack: () -> Unit) {
                         ConfirmActionButton(if (e.disabled) "Aktifkan" else "Nonaktifkan", run = {
                             manager.run { ServiceRepo.setSimpleQueueDisabled(it, e.id, !e.disabled) }
                         }, onDone = onChanged)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SmallButton("Edit") { form = simpleQueueForm(e) }
+                            ConfirmActionButton("Hapus", run = {
+                                manager.runNoRetry { CrudRepo.remove(it, "/queue/simple", e.id) }
+                            }, onDone = onChanged)
+                        }
                     }
                 }
+            }
             }
         }
     }

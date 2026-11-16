@@ -90,7 +90,19 @@ data class FirewallRule(
     val bytes: Long,
     val packets: Long,
     /** Baris ringkasan siap tampil (src/dst, protokol, interface, mark, dll). */
-    val detailLines: List<String>
+    val detailLines: List<String>,
+    // Nilai mentah untuk form edit (v0.4).
+    val srcAddress: String = "",
+    val dstAddress: String = "",
+    val protocol: String = "",
+    val dstPort: String = "",
+    val inInterface: String = "",
+    val outInterface: String = "",
+    val toAddresses: String = "",
+    val toPorts: String = "",
+    val newConnectionMark: String = "",
+    val newPacketMark: String = "",
+    val newRoutingMark: String = ""
 )
 
 /** Repo baca/tulis ringan untuk inventaris jaringan (v0.2). */
@@ -224,7 +236,18 @@ object NetworkRepo {
                     comment = r["comment"] ?: "",
                     bytes = r["bytes"]?.toLongOrNull() ?: 0L,
                     packets = r["packets"]?.toLongOrNull() ?: 0L,
-                    detailLines = firewallDetailLines(kind, r)
+                    detailLines = firewallDetailLines(kind, r),
+                    srcAddress = r["src-address"] ?: "",
+                    dstAddress = r["dst-address"] ?: "",
+                    protocol = r["protocol"] ?: "",
+                    dstPort = r["dst-port"] ?: "",
+                    inInterface = r["in-interface"] ?: "",
+                    outInterface = r["out-interface"] ?: "",
+                    toAddresses = r["to-addresses"] ?: "",
+                    toPorts = r["to-ports"] ?: "",
+                    newConnectionMark = r["new-connection-mark"] ?: "",
+                    newPacketMark = r["new-packet-mark"] ?: "",
+                    newRoutingMark = r["new-routing-mark"] ?: ""
                 )
             }
         } }

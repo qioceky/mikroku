@@ -29,8 +29,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.mikroku.api.MikrotikClient
+import id.mikroku.data.CrudRepo
+import id.mikroku.data.DhcpLeaseEntry
 import id.mikroku.data.DnsInfo
 import id.mikroku.data.FirewallRule
+import id.mikroku.data.IpAddressEntry
 import id.mikroku.data.NetworkRepo
 import id.mikroku.data.SessionManager
 import kotlinx.coroutines.delay
@@ -159,27 +162,70 @@ fun StateTags(vararg tags: Pair<String, Boolean>) {
     }
 }
 
+private fun ipAddressForm(existing: IpAddressEntry?): CrudFormSpec {
+    val edit = existing != null
+    return CrudFormSpec(
+        title = if (edit) "Edit Alamat IP" else "Tambah Alamat IP",
+        isEdit = edit,
+        fields = listOf(
+            CrudField("address", "Alamat IP + prefix", existing?.address ?: "",
+                hint = "mis. 192.168.88.1/24", required = true),
+            CrudField("interface", "Interface", existing?.iface ?: "",
+                hint = "mis. ether2, bridge1, wlan1", required = true),
+            CrudField("comment", "Komentar", existing?.comment ?: "")
+        ),
+        submit = { client, v ->
+            if (edit) {
+                val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "comment" }
+                CrudRepo.set(client, "/ip/address", existing!!.id, attrs)
+            } else {
+                CrudRepo.add(client, "/ip/address", v.filterValues { it.isNotBlank() })
+            }
+        }
+    )
+}
+
 @Composable
 private fun IpAddressScreen(manager: SessionManager, onBack: () -> Unit) {
-    PollingSection(
-        title = "Alamat IP",
-        manager = manager,
-        onBack = onBack,
-        fetch = { NetworkRepo.fetchIpAddresses(it) },
-        emptyText = "Tidak ada alamat IP terpasang.",
-        itemKey = { it.id }
-    ) { e ->
-        NeoCard {
-            Row {
-                StatusDot(!e.disabled && !e.invalid, Modifier.padding(top = 4.dp, end = 7.dp))
-                Column {
-                    Text(e.address, fontWeight = FontWeight.Black, fontSize = 15.sp)
-                    Text(
-                        "di ${e.iface}${if (e.network.isNotBlank()) " • network ${e.network}" else ""}",
-                        color = Muted, fontSize = 12.sp
-                    )
-                    StateTags("nonaktif" to e.disabled, "dinamis" to e.dynamic, "invalid" to e.invalid)
-                    if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
+    var tick by remember { mutableStateOf(0) }
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; tick++ }, onCancel = { form = null })
+        return
+    }
+    Column {
+        SectionHeader("Alamat IP", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        NeoButton("+ Tambah Alamat IP", fill = Color.White) { form = ipAddressForm(null) }
+        Spacer(Modifier.height(10.dp))
+        PollingCards(
+            manager = manager, resetKey = "ip", tick = tick, onChanged = { tick++ },
+            fetch = { NetworkRepo.fetchIpAddresses(it) },
+            emptyText = "Tidak ada alamat IP terpasang.",
+            itemKey = { it.id }
+        ) { e, onChanged ->
+            NeoCard {
+                Row {
+                    StatusDot(!e.disabled && !e.invalid, Modifier.padding(top = 4.dp, end = 7.dp))
+                    Column {
+                        Text(e.address, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                        Text(
+                            "di ${e.iface}${if (e.network.isNotBlank()) " • network ${e.network}" else ""}",
+                            color = Muted, fontSize = 12.sp
+                        )
+                        StateTags("nonaktif" to e.disabled, "dinamis" to e.dynamic, "invalid" to e.invalid)
+                        if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
+                    }
+                }
+                if (!e.dynamic) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallButton("Edit") { form = ipAddressForm(e) }
+                        ConfirmActionButton("Hapus", run = {
+                            manager.runNoRetry { CrudRepo.remove(it, "/ip/address", e.id) }
+                        }, onDone = onChanged)
+                    }
                 }
             }
         }
@@ -216,32 +262,46 @@ private fun DhcpServerScreen(manager: SessionManager, onBack: () -> Unit) {
 
 @Composable
 private fun DhcpLeaseScreen(manager: SessionManager, onBack: () -> Unit) {
-    PollingSection(
-        title = "Lease DHCP",
-        manager = manager,
-        onBack = onBack,
-        fetch = { NetworkRepo.fetchDhcpLeases(it) },
-        emptyText = "Belum ada lease aktif.",
-        itemKey = { it.id }
-    ) { e ->
-        NeoCard {
-            Row {
-                StatusDot(e.status == "bound" && !e.disabled, Modifier.padding(top = 4.dp, end = 7.dp))
-                Column {
-                    Text(
-                        e.hostName.ifBlank { e.address },
-                        fontWeight = FontWeight.Black, fontSize = 15.sp
-                    )
-                    Text(e.address, color = Muted, fontSize = 12.sp)
-                    if (e.macAddress.isNotBlank()) Text(e.macAddress, color = Muted, fontSize = 12.sp)
-                    val meta = buildString {
-                        if (e.status.isNotBlank()) append(e.status)
-                        if (e.expiresAfter.isNotBlank()) append(" • sisa ${e.expiresAfter}")
-                        if (e.server.isNotBlank()) append(" • server ${e.server}")
+    var tick by remember { mutableStateOf(0) }
+    Column {
+        SectionHeader("Lease DHCP", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        PollingCards(
+            manager = manager, resetKey = "lease", tick = tick, onChanged = { tick++ },
+            fetch = { NetworkRepo.fetchDhcpLeases(it) },
+            emptyText = "Belum ada lease aktif.",
+            itemKey = { it.id }
+        ) { e, onChanged ->
+            NeoCard {
+                Row {
+                    StatusDot(e.status == "bound" && !e.disabled, Modifier.padding(top = 4.dp, end = 7.dp))
+                    Column {
+                        Text(
+                            e.hostName.ifBlank { e.address },
+                            fontWeight = FontWeight.Black, fontSize = 15.sp
+                        )
+                        Text(e.address, color = Muted, fontSize = 12.sp)
+                        if (e.macAddress.isNotBlank()) Text(e.macAddress, color = Muted, fontSize = 12.sp)
+                        val meta = buildString {
+                            if (e.status.isNotBlank()) append(e.status)
+                            if (e.expiresAfter.isNotBlank()) append(" • sisa ${e.expiresAfter}")
+                            if (e.server.isNotBlank()) append(" • server ${e.server}")
+                        }
+                        if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 11.sp)
+                        StateTags("dinamis" to e.dynamic, "nonaktif" to e.disabled)
+                        if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
                     }
-                    if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 11.sp)
-                    StateTags("dinamis" to e.dynamic, "nonaktif" to e.disabled)
-                    if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (e.dynamic) {
+                        ConfirmActionButton("Jadikan Statis", run = {
+                            manager.runNoRetry { CrudRepo.makeLeaseStatic(it, e.id) }
+                        }, onDone = onChanged)
+                    }
+                    ConfirmActionButton("Hapus", run = {
+                        manager.runNoRetry { CrudRepo.remove(it, "/ip/dhcp-server/lease", e.id) }
+                    }, onDone = onChanged)
                 }
             }
         }
@@ -412,6 +472,57 @@ private fun DnsScreen(manager: SessionManager, onBack: () -> Unit) {
     }
 }
 
+private fun firewallForm(kind: String, existing: FirewallRule?): CrudFormSpec {
+    val edit = existing != null
+    val chains = when (kind) {
+        "nat" -> listOf("srcnat", "dstnat")
+        "mangle" -> listOf("prerouting", "input", "forward", "output", "postrouting")
+        else -> listOf("input", "forward", "output")
+    }
+    val actions = when (kind) {
+        "nat" -> listOf("masquerade", "src-nat", "dst-nat", "redirect", "netmap", "accept")
+        "mangle" -> listOf("mark-connection", "mark-packet", "mark-routing", "change-mss", "accept", "log")
+        else -> listOf("accept", "drop", "reject", "tarpit", "log", "jump")
+    }
+    val fields = mutableListOf(
+        CrudField("chain", "Chain", existing?.chain ?: chains.first(), required = true, options = chains),
+        CrudField("action", "Action", existing?.action ?: actions.first(), required = true, options = actions),
+        CrudField("src-address", "Src. Address", existing?.srcAddress ?: "", hint = "kosong = semua"),
+        CrudField("dst-address", "Dst. Address", existing?.dstAddress ?: "", hint = "kosong = semua"),
+        CrudField("protocol", "Protokol", existing?.protocol ?: "", options = listOf("tcp", "udp", "icmp")),
+        CrudField("dst-port", "Dst. Port", existing?.dstPort ?: "", hint = "mis. 80, 443, 8000-9000"),
+        CrudField("in-interface", "In. Interface", existing?.inInterface ?: ""),
+        CrudField("out-interface", "Out. Interface", existing?.outInterface ?: "")
+    )
+    if (kind == "nat") {
+        fields += CrudField("to-addresses", "To Addresses", existing?.toAddresses ?: "")
+        fields += CrudField("to-ports", "To Ports", existing?.toPorts ?: "")
+    }
+    if (kind == "mangle") {
+        fields += CrudField("new-connection-mark", "New Conn. Mark", existing?.newConnectionMark ?: "")
+        fields += CrudField("new-packet-mark", "New Packet Mark", existing?.newPacketMark ?: "")
+        fields += CrudField("new-routing-mark", "New Routing Mark", existing?.newRoutingMark ?: "")
+    }
+    fields += CrudField("comment", "Komentar", existing?.comment ?: "")
+    val path = "/ip/firewall/$kind"
+    val kindLabel = kind.replaceFirstChar { it.uppercase() }
+    return CrudFormSpec(
+        title = if (edit) "Edit Rule $kindLabel" else "Tambah Rule $kindLabel",
+        isEdit = edit,
+        fields = fields,
+        submit = { client, v ->
+            if (edit) {
+                // Saat edit, kolom kosong (selain komentar) tidak dikirim:
+                // mencegah trap dari properti enum yang tidak bisa dikosongkan.
+                val attrs = v.filter { (k, value) -> value.isNotBlank() || k == "comment" }
+                CrudRepo.set(client, path, existing!!.id, attrs)
+            } else {
+                CrudRepo.add(client, path, v.filterValues { it.isNotBlank() })
+            }
+        }
+    )
+}
+
 @Composable
 private fun FirewallScreen(manager: SessionManager, onBack: () -> Unit) {
     var kind by remember { mutableStateOf("filter") }
@@ -420,7 +531,14 @@ private fun FirewallScreen(manager: SessionManager, onBack: () -> Unit) {
     var tick by remember { mutableStateOf(0) }
     var confirmId by remember { mutableStateOf<String?>(null) }
     var actionMsg by remember { mutableStateOf<String?>(null) }
+    var form by remember { mutableStateOf<CrudFormSpec?>(null) }
     val scope = rememberCoroutineScope()
+
+    val f = form
+    if (f != null) {
+        CrudFormScreen(f, manager, onDone = { form = null; tick++ }, onCancel = { form = null })
+        return
+    }
 
     LaunchedEffect(manager, kind, tick) {
         while (isActive) {
@@ -456,6 +574,8 @@ private fun FirewallScreen(manager: SessionManager, onBack: () -> Unit) {
                 }
             }
         }
+        Spacer(Modifier.height(10.dp))
+        NeoButton("+ Tambah Rule", fill = Color.White) { form = firewallForm(kind, null) }
         Spacer(Modifier.height(10.dp))
         actionMsg?.let {
             Text(it, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -539,6 +659,17 @@ private fun FirewallScreen(manager: SessionManager, onBack: () -> Unit) {
                                         confirmId = null
                                     }
                                 }
+                            }
+                        }
+                        if (!rule.dynamic && rule.id.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SmallButton("Edit") { form = firewallForm(kind, rule) }
+                                ConfirmActionButton("Hapus", run = {
+                                    manager.runNoRetry {
+                                        CrudRepo.remove(it, "/ip/firewall/$kind", rule.id)
+                                    }
+                                }, onDone = { tick++ })
                             }
                         }
                     }

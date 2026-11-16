@@ -50,6 +50,22 @@ class SessionManager(
         }
     }
 
+    /**
+     * Jalankan [block] SATU kali tanpa pengulangan otomatis.
+     * Untuk aksi tulis (tambah/ubah/hapus): bila koneksi putus di tengah
+     * aksi, hasilnya ambigu — mengulang bisa menggandakan data. Sesi yang
+     * mati tetap dibuang agar panggilan berikutnya menyambung ulang.
+     */
+    suspend fun <T> runNoRetry(block: suspend (MikrotikClient) -> T): T {
+        val s = ensure()
+        return try {
+            block(s.client)
+        } catch (e: IOException) {
+            invalidate()
+            throw e
+        }
+    }
+
     private suspend fun ensure(): RouterSession = mutex.withLock {
         session ?: openLocked()
     }
