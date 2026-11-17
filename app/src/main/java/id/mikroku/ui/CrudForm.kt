@@ -132,7 +132,10 @@ fun CrudFormScreen(
                         visualTransformation = if (field.isPassword && !shown)
                             androidx.compose.ui.text.input.PasswordVisualTransformation()
                         else androidx.compose.ui.text.input.VisualTransformation.None,
-                        trailingIcon = if (field.isPassword) {
+                        // Tombol Lihat/Tutup hanya bila kolom ADA isinya — pada
+                        // kolom kosong (mis. password User RouterOS yang memang
+                        // tidak bisa dibaca dari router) tombol itu menyesatkan.
+                        trailingIcon = if (field.isPassword && (values[field.key] ?: "").isNotEmpty()) {
                             {
                                 Text(
                                     if (shown) "Tutup" else "Lihat",

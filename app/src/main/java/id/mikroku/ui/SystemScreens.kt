@@ -214,8 +214,8 @@ private fun routerUserForm(existing: RouterUserEntry?): CrudFormSpec {
         isEdit = edit,
         fields = listOf(
             CrudField("name", "Username", existing?.name ?: "", required = true),
-            CrudField("password", "Password", "",
-                hint = if (edit) "RouterOS tidak mengirim balik password user — kosongkan bila tidak diubah" else "Boleh kosong",
+            CrudField("password", if (edit) "Password Baru" else "Password", "",
+                hint = if (edit) "Password saat ini terpasang di router tapi TIDAK bisa dibaca — RouterOS tidak pernah mengirimkannya keluar (di WinBox pun kolom ini kosong). Kosongkan = tidak diubah; isi = ganti baru." else "Boleh kosong",
                 skipBlankOnEdit = true, isPassword = true),
             CrudField("group", "Grup", existing?.group ?: "read",
                 hint = "full / read / write atau nama grup kustom",
