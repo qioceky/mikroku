@@ -125,7 +125,7 @@ fun AboutScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text(
                 "Ikon: Font Awesome Free 6.5.2 (lisensi CC BY 4.0, fontawesome.com). " +
-                    "Kode QR: ZXing (Apache License 2.0). Sidik jari: AndroidX Biometric.",
+                    "Kode QR: ZXing (Apache License 2.0).",
                 color = Muted, fontSize = 11.sp
             )
         }
@@ -206,8 +206,8 @@ private fun AppLockCard() {
         Text("Kunci Aplikasi", fontWeight = FontWeight.Black, fontSize = 15.sp)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Status: " + if (enabled) "AKTIF — aplikasi minta PIN/sidik jari " +
-                "setiap dibuka." else "Tidak aktif.",
+            "Status: " + if (enabled) "AKTIF — aplikasi minta PIN/kunci " +
+                "perangkat setiap dibuka." else "Tidak aktif.",
             fontSize = 13.sp
         )
         Text(

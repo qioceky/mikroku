@@ -1,7 +1,8 @@
 package id.mikroku.ui
 
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
+import android.app.Activity
+import android.app.KeyguardManager
+import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,14 +26,34 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 import id.mikroku.data.SettingsStore
 
 /**
+ * Jembatan hasil konfirmasi kunci perangkat: MainActivity meneruskan
+ * onActivityResult klasik ke callback yang didaftarkan layar kunci.
+ * Sengaja TANPA ActivityResultLauncher/FragmentActivity — kombinasi itu
+ * yang membuat pemilih file crash di v1.5.0 (requestCode > 16 bit).
+ */
+object AppLockAuth {
+    const val REQUEST_CODE = 9021
+
+    private var pending: ((Boolean) -> Unit)? = null
+
+    fun await(callback: (Boolean) -> Unit) {
+        pending = callback
+    }
+
+    fun deliver(success: Boolean) {
+        val cb = pending
+        pending = null
+        cb?.invoke(success)
+    }
+}
+
+/**
  * Layar Kunci Aplikasi: tampil sebelum daftar router bila user mengaktifkan
- * kunci. Buka dengan PIN master (hash tersimpan di SettingsStore) atau
- * sidik jari (BiometricPrompt) bila perangkat mendukung.
+ * kunci. Buka dengan PIN master MikroKu (hash di SettingsStore) atau kunci
+ * perangkat Android (sidik jari/PIN/pola HP lewat KeyguardManager).
  */
 @Composable
 fun LockScreen(onUnlocked: () -> Unit) {
@@ -40,41 +61,37 @@ fun LockScreen(onUnlocked: () -> Unit) {
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
-    val biometricAvailable = remember {
+    val keyguard = remember {
+        context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+    }
+    val deviceSecure = remember {
         try {
-            BiometricManager.from(context).canAuthenticate(
-                BiometricManager.Authenticators.BIOMETRIC_WEAK
-            ) == BiometricManager.BIOMETRIC_SUCCESS
+            keyguard?.isDeviceSecure == true
         } catch (e: Exception) {
             false
         }
     }
 
-    fun tryBiometric() {
-        val activity = context as? FragmentActivity ?: return
-        val prompt = BiometricPrompt(
-            activity,
-            ContextCompat.getMainExecutor(context),
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    onUnlocked()
-                }
-
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
-                        errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON
-                    ) {
-                        error = errString.toString()
-                    }
-                }
-            }
+    fun tryDeviceUnlock() {
+        val activity = context as? Activity ?: return
+        val km = keyguard ?: return
+        val intent = km.createConfirmDeviceCredentialIntent(
+            "Buka MikroKu",
+            "Konfirmasi kunci perangkat untuk membuka MikroKu"
         )
-        val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Buka MikroKu")
-            .setSubtitle("Pakai sidik jari untuk membuka kunci aplikasi")
-            .setNegativeButtonText("Pakai PIN")
-            .build()
-        prompt.authenticate(info)
+        if (intent == null) {
+            error = "Kunci perangkat tidak tersedia di HP ini."
+            return
+        }
+        AppLockAuth.await { success ->
+            if (success) {
+                onUnlocked()
+            } else {
+                error = "Konfirmasi kunci perangkat dibatalkan."
+            }
+        }
+        @Suppress("DEPRECATION")
+        activity.startActivityForResult(intent, AppLockAuth.REQUEST_CODE)
     }
 
     Column(
@@ -122,9 +139,11 @@ fun LockScreen(onUnlocked: () -> Unit) {
                 pin = ""
             }
         }
-        if (biometricAvailable) {
+        if (deviceSecure) {
             Spacer(Modifier.height(10.dp))
-            NeoButton("Pakai Sidik Jari", fill = CardFill) { tryBiometric() }
+            NeoButton("Pakai Kunci Perangkat (Sidik Jari/PIN HP)", fill = CardFill) {
+                tryDeviceUnlock()
+            }
         }
     }
 }
