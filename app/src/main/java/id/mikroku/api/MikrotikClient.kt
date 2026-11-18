@@ -54,12 +54,19 @@ class MikrotikClient private constructor(
                 val ctx = SSLContext.getInstance("TLS")
                 ctx.init(null, arrayOf(trustManager), SecureRandom())
                 val s = ctx.socketFactory.createSocket() as SSLSocket
-                // RouterOS v6 hanya menawarkan cipher TLS lama (keluarga RSA)
-                // yang tidak selalu aktif bawaan di Android baru — nyalakan
-                // semua cipher & protokol yang didukung soket agar jabat
-                // tangan menemukan titik temu.
+                // Kompatibilitas TLS RouterOS:
+                // - Cipher: RouterOS v6 hanya menawarkan cipher lama (keluarga
+                //   RSA) yang tidak selalu aktif bawaan di Android baru —
+                //   nyalakan semua cipher yang didukung soket.
+                // - Protokol: kunci ke TLS 1.2 SAJA. API-SSL RouterOS (v6 & v7)
+                //   berbicara TLS 1.2, dan tumpukan TLS v6 menolak ClientHello
+                //   Android baru yang menawarkan TLS 1.3 (handshake_failure).
                 try { s.enabledCipherSuites = s.supportedCipherSuites } catch (_: Exception) {}
-                try { s.enabledProtocols = s.supportedProtocols } catch (_: Exception) {}
+                try {
+                    s.enabledProtocols =
+                        if (s.supportedProtocols.contains("TLSv1.2")) arrayOf("TLSv1.2")
+                        else s.supportedProtocols
+                } catch (_: Exception) {}
                 s.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
                 s.soTimeout = READ_TIMEOUT_MS
                 s.startHandshake()

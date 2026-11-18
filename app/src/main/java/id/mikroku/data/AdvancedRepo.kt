@@ -301,13 +301,21 @@ object AdvancedRepo {
                 ?: throw ApiException("Service api-ssl tidak ditemukan di router")
             val svcId = svc[".id"] ?: throw ApiException("ID service api-ssl tidak terbaca")
             val port = svc["port"] ?: "8729"
+            // Mulai ulang service api-ssl agar ia MEMUAT sertifikat yang
+            // terpasang — service yang sudah terlanjur jalan sejak sebelum
+            // ada sertifikat bisa terus menolak jabat tangan TLS.
+            fun restartApiSsl() {
+                try {
+                    client.runCommand("/ip/service/set", "=.id=$svcId", "=disabled=yes")
+                } catch (_: Exception) {}
+                Thread.sleep(700)
+                client.runCommand("/ip/service/set", "=.id=$svcId", "=disabled=no")
+            }
             val currentCert = (svc["certificate"] ?: "none").ifBlank { "none" }
             if (currentCert != "none") {
-                if (svc["disabled"] == "true") {
-                    client.runCommand("/ip/service/set", "=.id=$svcId", "=disabled=no")
-                }
+                restartApiSsl()
                 return@synchronized "API-SSL sudah siap: sertifikat '$currentCert' terpasang " +
-                    "dan service aktif di port $port — tidak ada yang diubah. " +
+                    "dan service api-ssl dimulai ulang di port $port agar memuatnya. " +
                     "Sambung ulang dengan mode API-SSL $port."
             }
             val certName = "mikroku-api"
@@ -362,8 +370,10 @@ object AdvancedRepo {
             if (after?.get("certificate") != certName) {
                 throw ApiException("Gagal memasang sertifikat ke service api-ssl")
             }
-            "API-SSL siap: sertifikat '$certName' dibuat & terpasang, service aktif " +
-                "di port $port. Putuskan koneksi ini, lalu sambung ulang dengan mode API-SSL $port."
+            restartApiSsl()
+            "API-SSL siap: sertifikat '$certName' dibuat & terpasang, service dimulai " +
+                "ulang di port $port agar memuatnya. Putuskan koneksi ini, lalu sambung " +
+                "ulang dengan mode API-SSL $port."
         } }
 
     suspend fun fetchNeighbors(client: MikrotikClient): List<NeighborEntry> =
