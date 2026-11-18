@@ -1,6 +1,7 @@
 package id.mikroku.data
 
 import id.mikroku.api.ApiException
+import id.mikroku.api.ApiTrapException
 import id.mikroku.api.MikrotikClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -324,8 +325,34 @@ object AdvancedRepo {
                     ?: throw ApiException("Sertifikat gagal dibuat di router")
             }
             val certId = cert[".id"] ?: throw ApiException("ID sertifikat tidak terbaca")
-            if (cert["invalid-after"].isNullOrBlank()) {
-                client.runCommand("/certificate/sign", "=number=$certId", "=ca-crl-host=127.0.0.1")
+            // Sertifikat dianggap berlaku bila sudah punya masa berlaku / nomor
+            // seri / status CA — template yang belum ditandatangani tidak bisa
+            // dipasang ke service ("input does not match any value of certificate").
+            fun certBerlaku(c: Map<String, String>): Boolean =
+                !c["invalid-after"].isNullOrBlank() || c["ca"] == "true" ||
+                    !c["serial-number"].isNullOrBlank()
+            if (!certBerlaku(cert)) {
+                try {
+                    client.runCommand("/certificate/sign", "=number=$certId", "=ca-crl-host=127.0.0.1")
+                } catch (e: ApiTrapException) {
+                    // Mungkin sedang ditandatangani dari ketukan sebelumnya — lanjut menunggu.
+                }
+                // Penandatanganan berjalan di LATAR router (perintah sign langsung
+                // selesai, sertifikat baru berlaku belakangan) — tunggu & cek berkala.
+                val deadline = System.currentTimeMillis() + 120_000
+                var berlaku = false
+                while (System.currentTimeMillis() < deadline) {
+                    Thread.sleep(2_000)
+                    val now = client.run("/certificate/print").firstOrNull { it["name"] == certName }
+                    if (now != null && certBerlaku(now)) { berlaku = true; break }
+                }
+                if (!berlaku) {
+                    throw ApiException(
+                        "Sertifikat masih dibuat router — di router kecil proses ini bisa " +
+                            "1–2 menit. Tunggu sebentar lalu ketuk 'Siapkan API-SSL' lagi; " +
+                            "langkah yang sudah beres akan dilewati."
+                    )
+                }
             }
             client.runCommand(
                 "/ip/service/set", "=.id=$svcId",
