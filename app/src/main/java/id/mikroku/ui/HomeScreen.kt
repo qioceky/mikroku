@@ -42,12 +42,17 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import id.mikroku.BuildConfig
 import id.mikroku.api.DiscoveredRouter
 import id.mikroku.api.MikrotikClient
 import id.mikroku.api.MndpDiscovery
 import id.mikroku.data.RouterProfile
+import id.mikroku.data.RouterQr
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 /**
@@ -80,6 +85,52 @@ fun HomeScreen(
     var useSsl by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf<String?>(null) }
     var savedNote by remember { mutableStateOf<String?>(null) }
+
+    // Isi form dari QR (tambah router): tempel teks atau pilih gambar QR.
+    val homeContext = LocalContext.current
+    val homeScope = rememberCoroutineScope()
+    var qrDialog by remember { mutableStateOf(false) }
+    var qrText by remember { mutableStateOf("") }
+
+    fun applyQr(raw: String) {
+        val parsed = RouterQr.parse(raw)
+        if (parsed == null) {
+            formError = "Isi QR tidak dikenali sebagai QR router (format MikroKu atau winbox://)."
+            return
+        }
+        val ssl = parsed.useSsl ?: useSsl
+        val defaultPort = if (ssl) MikrotikClient.DEFAULT_PORT_SSL
+        else MikrotikClient.DEFAULT_PORT_PLAIN
+        address = if (parsed.port != null && parsed.port != defaultPort) {
+            "${parsed.host}:${parsed.port}"
+        } else {
+            parsed.host
+        }
+        if (parsed.username.isNotBlank()) username = parsed.username
+        if (parsed.useSsl != null) useSsl = parsed.useSsl
+        formError = null
+        savedNote = "Form terisi dari QR${if (parsed.name.isNotBlank()) " \"${parsed.name}\"" else ""} — " +
+            "isi password lalu Sambungkan/Simpan. Password tidak pernah ada di QR."
+        tab = 0
+    }
+
+    val qrImageLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            homeScope.launch {
+                val text = withContext(Dispatchers.IO) {
+                    RouterQr.decodeFromImage(homeContext, uri)
+                }
+                if (text != null) {
+                    qrDialog = false
+                    applyQr(text)
+                } else {
+                    formError = "QR tidak terbaca dari gambar itu — coba gambar yang lebih jelas."
+                }
+            }
+        }
+    }
 
     LaunchedEffect(prefillRequest) {
         if (prefill != null) {
@@ -126,6 +177,7 @@ fun HomeScreen(
             username = username.trim(),
             password = password,
             note = existing?.note ?: "",
+            group = existing?.group ?: "",
             certFingerprint = existing?.certFingerprint,
             sshFingerprint = existing?.sshFingerprint
         )
@@ -191,7 +243,8 @@ fun HomeScreen(
                     val session = buildSession() ?: return@LoginForm
                     val saveAs = if (keepPassword) session else null
                     onConnect(session, saveAs)
-                }
+                },
+                onQr = { qrDialog = true }
                 )
             }
             1 -> SavedTab(
@@ -208,6 +261,46 @@ fun HomeScreen(
                     formError = null
                     savedNote = "Router \"${d.identity}\" dipilih — isi username & password, lalu Sambungkan."
                     tab = 0
+                }
+            )
+        }
+
+        if (qrDialog) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { qrDialog = false },
+                title = { Text("Isi Form dari QR", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text(
+                            "Pilih gambar QR dari galeri, atau tempel isi teks QR " +
+                                "(format MikroKu / winbox://). Password tidak pernah " +
+                                "ada di QR — tetap diketik manual.",
+                            fontSize = 12.sp, color = Muted
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            qrText, { qrText = it },
+                            Modifier.fillMaxWidth(), singleLine = false,
+                            label = { Text("Isi teks QR") },
+                            placeholder = { Text("mikroku://add?…") }
+                        )
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        qrDialog = false
+                        applyQr(qrText)
+                    }) { Text("Terapkan Teks", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    Row {
+                        androidx.compose.material3.TextButton(onClick = {
+                            qrImageLauncher.launch("image/*")
+                        }) { Text("Pilih Gambar", fontWeight = FontWeight.Bold) }
+                        androidx.compose.material3.TextButton(onClick = { qrDialog = false }) {
+                            Text("Batal")
+                        }
+                    }
                 }
             )
         }
@@ -238,7 +331,7 @@ private fun LoginForm(
     keepPassword: Boolean, onKeep: (Boolean) -> Unit,
     useSsl: Boolean, onUseSsl: (Boolean) -> Unit,
     error: String?, savedNote: String?,
-    onSave: () -> Unit, onConnect: () -> Unit
+    onSave: () -> Unit, onConnect: () -> Unit, onQr: () -> Unit
 ) {
     Column(Modifier.verticalScroll(rememberScrollState())) {
         FormField("Address (IP router, boleh tambah :port)") {
@@ -294,6 +387,8 @@ private fun LoginForm(
             NeoButton("SIMPAN", Modifier.weight(1f), fill = CardFill) { onSave() }
             NeoButton("SAMBUNGKAN", Modifier.weight(1f)) { onConnect() }
         }
+        Spacer(Modifier.height(10.dp))
+        NeoButton("Isi dari QR", fill = CardFill) { onQr() }
         Spacer(Modifier.height(14.dp))
         Text(
             "Router harus sudah mengaktifkan service API (Winbox → IP → Services) dan user ber-policy api. Lihat Panduan untuk langkah lengkapnya.",
@@ -359,14 +454,39 @@ private fun SavedTab(
             Spacer(Modifier.height(12.dp))
             NeoButton("Ke Form Masuk") { onGoLogin() }
         } else {
+            // Grup bertingkat: profil tanpa grup di tingkat atas, lalu per
+            // grup (path "Induk/Anak") dengan judul berindentasi per kedalaman.
+            val ungrouped = routers.filter { it.group.isBlank() }
+            val grouped = routers.filter { it.group.isNotBlank() }
+                .groupBy { it.group.trim() }
+                .toSortedMap()
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(routers, key = { it.id }) { profile ->
+                items(ungrouped, key = { it.id }) { profile ->
                     RouterCard(
                         profile = profile,
                         online = statuses[profile.id],
                         onOpen = { onOpen(profile) },
                         onEdit = { onEdit(profile) }
                     )
+                }
+                for ((groupName, members) in grouped) {
+                    item(key = "grup-$groupName") {
+                        val depth = groupName.count { it == '/' }
+                        Text(
+                            groupName.replace("/", "  ›  ").uppercase(),
+                            fontWeight = FontWeight.Black, fontSize = 12.sp,
+                            color = Muted,
+                            modifier = Modifier.padding(start = (depth * 14).dp, top = 4.dp)
+                        )
+                    }
+                    items(members, key = { it.id }) { profile ->
+                        RouterCard(
+                            profile = profile,
+                            online = statuses[profile.id],
+                            onOpen = { onOpen(profile) },
+                            onEdit = { onEdit(profile) }
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))

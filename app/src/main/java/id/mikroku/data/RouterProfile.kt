@@ -14,6 +14,11 @@ data class RouterProfile(
     val username: String,
     val password: String,
     val note: String = "",
+    /**
+     * Grup profil sebagai path bertingkat, mis. "Sekolah" atau
+     * "Sekolah/Kelas" (pemisah "/"). Kosong = tanpa grup (tingkat atas).
+     */
+    val group: String = "",
     /** Sidik jari sertifikat api-ssl (TOFU); null bila belum pernah konek SSL. */
     val certFingerprint: String? = null,
     /** Sidik jari kunci host SSH untuk SFTP (TOFU); null bila belum pernah transfer. */
@@ -31,6 +36,7 @@ data class RouterProfile(
         put("username", username)
         put("password", password)
         put("note", note)
+        put("group", group)
         if (certFingerprint != null) put("certFingerprint", certFingerprint)
         if (sshFingerprint != null) put("sshFingerprint", sshFingerprint)
     }
@@ -45,6 +51,7 @@ data class RouterProfile(
             username = o.optString("username", "admin"),
             password = o.optString("password", ""),
             note = o.optString("note", ""),
+            group = o.optString("group", ""),
             certFingerprint = if (o.has("certFingerprint")) o.optString("certFingerprint") else null,
             sshFingerprint = if (o.has("sshFingerprint")) o.optString("sshFingerprint") else null
         )

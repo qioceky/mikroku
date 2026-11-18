@@ -64,6 +64,9 @@ fun MikroKuApp() {
     // jangan sampai daftar tersimpan tampak "kosong" tanpa penjelasan.
     var storeError by remember { mutableStateOf(store.lastLoadError) }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    // Kunci Aplikasi: bila aktif, daftar router tidak tampil sebelum dibuka
+    // (per proses aplikasi — membuka kunci berlaku sampai aplikasi ditutup).
+    var unlocked by remember { mutableStateOf(!SettingsStore.appLockEnabled(context)) }
     val statuses = remember { mutableStateMapOf<String, Boolean>() }
     val statusCheckedAt = remember { mutableStateMapOf<String, Long>() }
     val scope = rememberCoroutineScope()
@@ -113,6 +116,9 @@ fun MikroKuApp() {
         // safeDrawingPadding: konten tidak lagi tertutup status bar / bar
         // navigasi (Android 15 menggambar edge-to-edge secara bawaan).
         Box(Modifier.fillMaxSize().background(Paper).safeDrawingPadding()) {
+            if (!unlocked) {
+                LockScreen(onUnlocked = { unlocked = true })
+            } else {
             when (val s = screen) {
                 is Screen.Home -> {
                     LaunchedEffect(routers.size) { checkStatuses() }
@@ -143,6 +149,8 @@ fun MikroKuApp() {
                 }
                 is Screen.EditRouter -> RouterEditScreen(
                     initial = s.profile,
+                    existingGroups = routers.map { it.group }
+                        .filter { it.isNotBlank() }.distinct().sorted(),
                     onBack = { screen = Screen.Home },
                     onSave = { saved ->
                         upsert(saved)
@@ -181,6 +189,7 @@ fun MikroKuApp() {
                         }
                     }
                 )
+            }
             }
         }
     }

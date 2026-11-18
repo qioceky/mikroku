@@ -27,6 +27,7 @@ object Fa {
     const val ARROWS_LR = ""
     const val RIGHT_LEFT = ""
     const val CHILD = ""
+    const val BUG = ""
     const val SHIELD = ""
     const val ADDRESS_BOOK = ""
     const val WIFI = ""

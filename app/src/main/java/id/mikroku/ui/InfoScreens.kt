@@ -124,7 +124,8 @@ fun AboutScreen(onBack: () -> Unit) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "Ikon: Font Awesome Free 6.5.2 (lisensi CC BY 4.0, fontawesome.com).",
+                "Ikon: Font Awesome Free 6.5.2 (lisensi CC BY 4.0, fontawesome.com). " +
+                    "Kode QR: ZXing (Apache License 2.0). Sidik jari: AndroidX Biometric.",
                 color = Muted, fontSize = 11.sp
             )
         }
@@ -159,6 +160,9 @@ fun AboutScreen(onBack: () -> Unit) {
         }
         Spacer(Modifier.height(12.dp))
 
+        AppLockCard()
+        Spacer(Modifier.height(12.dp))
+
         NeoCard {
             Text("Log crash terakhir", fontWeight = FontWeight.Black, fontSize = 15.sp)
             Spacer(Modifier.height(4.dp))
@@ -183,5 +187,86 @@ fun AboutScreen(onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/**
+ * Kartu Kunci Aplikasi di Tentang: pasang/ganti/nonaktifkan PIN master.
+ * Membuka kunci bisa pakai PIN atau sidik jari (di layar kunci).
+ */
+@Composable
+private fun AppLockCard() {
+    val context = LocalContext.current
+    var enabled by remember { mutableStateOf(SettingsStore.appLockEnabled(context)) }
+    var pin1 by remember { mutableStateOf("") }
+    var pin2 by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf<String?>(null) }
+
+    NeoCard {
+        Text("Kunci Aplikasi", fontWeight = FontWeight.Black, fontSize = 15.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Status: " + if (enabled) "AKTIF — aplikasi minta PIN/sidik jari " +
+                "setiap dibuka." else "Tidak aktif.",
+            fontSize = 13.sp
+        )
+        Text(
+            "PIN hanya disimpan sebagai hash bergaram di HP. Lupa PIN = " +
+                "kunci tidak bisa dibuka dari dalam aplikasi; jaga baik-baik.",
+            color = Muted, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.material3.OutlinedTextField(
+            pin1, { pin1 = it },
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text(if (enabled) "PIN baru" else "Buat PIN (min. 4 digit)") },
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+            )
+        )
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.material3.OutlinedTextField(
+            pin2, { pin2 = it },
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("Ulangi PIN") },
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+            )
+        )
+        msg?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            NeoButton(if (enabled) "Ganti PIN" else "Aktifkan Kunci", Modifier.weight(1f)) {
+                when {
+                    pin1.length < 4 -> msg = "PIN minimal 4 digit."
+                    pin1 != pin2 -> msg = "PIN dan ulangannya tidak sama."
+                    else -> {
+                        SettingsStore.setAppLockPin(context, pin1)
+                        enabled = true
+                        pin1 = ""
+                        pin2 = ""
+                        msg = "Kunci aplikasi aktif — berlaku mulai aplikasi dibuka lagi."
+                    }
+                }
+            }
+            if (enabled) {
+                NeoButton("Nonaktifkan", Modifier.weight(1f), fill = CardFill) {
+                    if (pin1.isNotBlank() && SettingsStore.verifyAppLockPin(context, pin1)) {
+                        SettingsStore.disableAppLock(context)
+                        enabled = false
+                        pin1 = ""
+                        pin2 = ""
+                        msg = "Kunci aplikasi dinonaktifkan."
+                    } else {
+                        msg = "Isi PIN saat ini di kolom pertama untuk menonaktifkan."
+                    }
+                }
+            }
+        }
     }
 }

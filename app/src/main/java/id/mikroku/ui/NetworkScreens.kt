@@ -66,7 +66,8 @@ private val menuCategories: List<Pair<String, List<MenuItem>>> = listOf(
         MenuItem("portforward", Fa.RIGHT_LEFT, "Port Forwarding", "Teruskan port publik ke perangkat LAN (wizard)"),
         MenuItem("addrlist", Fa.ADDRESS_BOOK, "Address List", "Daftar alamat untuk firewall"),
         MenuItem("koneksi", Fa.DIAGRAM, "Koneksi Aktif", "Tracking koneksi yang sedang lewat"),
-        MenuItem("service", Fa.BELL, "IP Service", "Service router: api, winbox, www, ssh")
+        MenuItem("service", Fa.BELL, "IP Service", "Service router: api, winbox, www, ssh"),
+        MenuItem("sus", Fa.BUG, "SUS — Cek Kompromi", "Pindai indikasi router terkompromi (heuristik)")
     ),
     "Layanan" to listOf(
         MenuItem("hotspot", Fa.WIFI, "Hotspot", "Server, user, voucher, dan sesi aktif"),
@@ -203,6 +204,7 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "pool" -> PoolScreen(manager, onBack)
         "dhcp-client" -> DhcpClientScreen(manager, onBack)
         "service" -> ServiceScreen(manager, onBack)
+        "sus" -> SusScreen(manager, onBack)
         "neighbor" -> NeighborScreen(manager, onBack)
         "konsol" -> ConsoleScreen(manager, onBack)
         "quickset" -> QuickSetScreen(manager, onBack)

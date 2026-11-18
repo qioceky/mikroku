@@ -22,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun RouterEditScreen(
     initial: RouterProfile?,
+    existingGroups: List<String> = emptyList(),
     onBack: () -> Unit,
     onSave: (RouterProfile) -> Unit,
     onDelete: (RouterProfile) -> Unit
@@ -49,6 +51,8 @@ fun RouterEditScreen(
     var username by remember { mutableStateOf(initial?.username ?: "admin") }
     var password by remember { mutableStateOf(initial?.password ?: "") }
     var note by remember { mutableStateOf(initial?.note ?: "") }
+    var group by remember { mutableStateOf(initial?.group ?: "") }
+    var showQr by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -67,6 +71,7 @@ fun RouterEditScreen(
             username = username.trim(),
             password = password,
             note = note.trim(),
+            group = group.trim().trim('/'),
             // Ganti mode/host membuat sidik jari lama tidak berlaku; tombol
             // "Hapus sidik jari" di bawah juga mengosongkannya (untuk router
             // yang diganti/diinstal ulang di alamat yang sama).
@@ -125,6 +130,48 @@ fun RouterEditScreen(
             Spacer(Modifier.height(8.dp))
         }
         Field("Catatan (opsional)", note) { note = it }
+        Field("Grup (opsional — '/' untuk sub-grup, mis. Sekolah/Kelas)", group) { group = it }
+        if (existingGroups.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (g in existingGroups.take(4)) {
+                    SmallHeaderButton(g) { group = g }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        if (initial != null) {
+            NeoButton("Tampilkan QR Profil Ini", fill = CardFill) { showQr = true }
+            Spacer(Modifier.height(10.dp))
+        }
+        if (showQr && initial != null) {
+            val qrBitmap = remember(initial.id) { id.mikroku.data.RouterQr.qrBitmap(initial) }
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showQr = false },
+                title = { Text("QR: ${initial.name}", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        androidx.compose.foundation.Image(
+                            bitmap = qrBitmap.asImageBitmap(),
+                            contentDescription = "QR profil router",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Pindai dari MikroKu di HP lain (tab MASUK → Isi dari QR). " +
+                                "QR berisi nama, alamat, port, dan username — " +
+                                "password TIDAK pernah ikut.",
+                            fontSize = 12.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = { showQr = false }) {
+                        Text("Tutup", fontWeight = FontWeight.Bold)
+                    }
+                }
+            )
+        }
 
         if (initial != null && (initial.certFingerprint != null || initial.sshFingerprint != null)) {
             NeoCard {
