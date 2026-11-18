@@ -82,6 +82,65 @@ object SystemRepo {
             }
         } }
 
+    /** Info RouterBOOT: firmware terpasang vs yang tersedia untuk upgrade. */
+    suspend fun fetchRouterboard(client: MikrotikClient): RouterboardInfo? =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            val r = client.run("/system/routerboard/print").firstOrNull()
+                ?: return@synchronized null
+            RouterboardInfo(
+                model = r["model"] ?: r["board-name"] ?: "",
+                serialNumber = r["serial-number"] ?: "",
+                factoryFirmware = r["factory-firmware"] ?: "",
+                currentFirmware = r["current-firmware"] ?: "",
+                upgradeFirmware = r["upgrade-firmware"] ?: ""
+            )
+        } }
+
+    /** Minta RouterBOOT memakai upgrade-firmware — berlaku setelah reboot. */
+    suspend fun upgradeRouterboard(client: MikrotikClient) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/system/routerboard/upgrade")
+        } }
+
+    /** Status update RouterOS terakhir yang diketahui router. */
+    suspend fun fetchPackageUpdate(client: MikrotikClient): PackageUpdateInfo? =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            val r = client.run("/system/package/update/print").firstOrNull()
+                ?: return@synchronized null
+            PackageUpdateInfo(
+                channel = r["channel"] ?: "",
+                installedVersion = r["installed-version"] ?: "",
+                latestVersion = r["latest-version"] ?: "",
+                statusText = r["status"] ?: ""
+            )
+        } }
+
+    /** Cek update ke server MikroTik (router butuh internet + DNS), lalu baca statusnya. */
+    suspend fun checkForUpdates(client: MikrotikClient): PackageUpdateInfo? =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/system/package/update/check-for-updates")
+            val r = client.run("/system/package/update/print").firstOrNull()
+                ?: return@synchronized null
+            PackageUpdateInfo(
+                channel = r["channel"] ?: "",
+                installedVersion = r["installed-version"] ?: "",
+                latestVersion = r["latest-version"] ?: "",
+                statusText = r["status"] ?: ""
+            )
+        } }
+
+    /** Unduh paket update saja (belum dipasang, tanpa reboot). */
+    suspend fun downloadUpdate(client: MikrotikClient) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/system/package/update/download")
+        } }
+
+    /** Pasang update: router mengunduh lalu REBOOT untuk menerapkannya. */
+    suspend fun installUpdate(client: MikrotikClient) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand("/system/package/update/install")
+        } }
+
     suspend fun fetchUsers(client: MikrotikClient): List<RouterUserEntry> =
         withContext(Dispatchers.IO) { synchronized(client) {
             client.run("/user/print").map { r ->
@@ -238,6 +297,28 @@ object SystemRepo {
         if (secondaryNtp.isNotBlank()) words += "=secondary-ntp=$secondaryNtp"
         client.runCommand("/system/ntp/client/set", *words.toTypedArray())
     } }
+}
+
+data class RouterboardInfo(
+    val model: String,
+    val serialNumber: String,
+    val factoryFirmware: String,
+    val currentFirmware: String,
+    val upgradeFirmware: String
+) {
+    val updateAvailable: Boolean
+        get() = upgradeFirmware.isNotBlank() && upgradeFirmware != currentFirmware
+}
+
+data class PackageUpdateInfo(
+    val channel: String,
+    val installedVersion: String,
+    val latestVersion: String,
+    val statusText: String
+) {
+    val updateAvailable: Boolean
+        get() = latestVersion.isNotBlank() && installedVersion.isNotBlank() &&
+            latestVersion != installedVersion
 }
 
 data class ClockInfo(

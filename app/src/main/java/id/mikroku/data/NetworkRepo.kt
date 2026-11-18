@@ -366,4 +366,54 @@ object NetworkRepo {
         }
         return lines
     }
+
+    /** Penanda komentar rule NAT hasil Port Forwarding wizard. */
+    const val PF_PREFIX = "MikroKu-PF"
+
+    /**
+     * Rule port forwarding yang dibuat wizard: dst-nat dengan komentar
+     * berawalan [PF_PREFIX] — rule NAT manual user tidak ikut tercampur.
+     */
+    suspend fun fetchPortForwards(client: MikrotikClient): List<FirewallRule> =
+        fetchFirewall(client, "nat").filter {
+            it.chain == "dstnat" && it.action == "dst-nat" && it.comment.startsWith(PF_PREFIX)
+        }
+
+    /** Nama semua interface untuk pilihan in-interface wizard. */
+    suspend fun fetchInterfaceNames(client: MikrotikClient): List<String> =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.run("/interface/print").mapNotNull { it["name"] }
+        } }
+
+    /**
+     * Tulis rule dst-nat port forwarding. Protokol "both" menulis dua rule
+     * (tcp + udp). Mengembalikan jumlah rule yang ditulis.
+     */
+    suspend fun addPortForward(
+        client: MikrotikClient,
+        protocol: String,
+        inInterface: String,
+        dstAddress: String,
+        dstPort: String,
+        toAddress: String,
+        toPort: String,
+        note: String
+    ): Int = withContext(Dispatchers.IO) { synchronized(client) {
+        val protos = if (protocol == "both") listOf("tcp", "udp") else listOf(protocol)
+        val comment = if (note.isBlank()) PF_PREFIX else "$PF_PREFIX: $note"
+        var count = 0
+        for (proto in protos) {
+            val args = mutableListOf(
+                "=chain=dstnat", "=action=dst-nat",
+                "=protocol=$proto", "=dst-port=$dstPort",
+                "=to-addresses=$toAddress", "=to-ports=$toPort",
+                "=comment=$comment"
+            )
+            if (inInterface.isNotBlank()) args.add("=in-interface=$inInterface")
+            if (dstAddress.isNotBlank()) args.add("=dst-address=$dstAddress")
+            client.runCommand("/ip/firewall/nat/add", *args.toTypedArray())
+            count++
+        }
+        count
+    } }
 }

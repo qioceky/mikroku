@@ -331,6 +331,36 @@ private fun DashboardTab(manager: SessionManager, profile: RouterProfile) {
                 }
             }
         }
+        if (data != null && data!!.internetStates.isNotEmpty()) {
+            val d = data!!
+            item {
+                NeoCard {
+                    Text("INTERNET DETECT", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Muted)
+                    Spacer(Modifier.height(6.dp))
+                    for ((iface, state) in d.internetStates) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text(iface, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            val (label, color) = when (state) {
+                                "internet" -> "INTERNET" to MikroGreen
+                                "wan" -> "WAN" to MikroYellow
+                                "lan" -> "LAN" to Muted
+                                "no-link" -> "TIDAK ADA LINK" to MikroRed
+                                else -> state.uppercase() to Muted
+                            }
+                            Text(label, fontWeight = FontWeight.Black, fontSize = 11.sp, color = color)
+                        }
+                    }
+                    Text(
+                        "Deteksi otomatis RouterOS per interface. Atur di Menu → Tools → Internet Detect.",
+                        color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        }
         item {
             Spacer(Modifier.height(2.dp))
             rebootMsg?.let { Text(it, fontWeight = FontWeight.Bold, fontSize = 13.sp) }

@@ -737,8 +737,199 @@ private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Un
 }
 
 @Composable
+private fun UpdateSection(manager: SessionManager, tick: Int) {
+    var board by remember { mutableStateOf<id.mikroku.data.RouterboardInfo?>(null) }
+    var update by remember { mutableStateOf<id.mikroku.data.PackageUpdateInfo?>(null) }
+    var loaded by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf<String?>(null) }
+    var localTick by remember { mutableStateOf(0) }
+    var confirmInstall by remember { mutableStateOf(false) }
+    var confirmFw by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(manager, tick, localTick) {
+        try { board = manager.run { SystemRepo.fetchRouterboard(it) } } catch (e: Exception) { }
+        try { update = manager.run { SystemRepo.fetchPackageUpdate(it) } } catch (e: Exception) { }
+        loaded = true
+    }
+
+    Column {
+        Text("PEMBARUAN", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Muted)
+        Spacer(Modifier.height(8.dp))
+        if (!loaded) {
+            Text("Memuat info pembaruan…", fontWeight = FontWeight.Bold)
+        } else {
+            NeoCard(Modifier.fillMaxWidth()) {
+                Text("RouterOS", fontWeight = FontWeight.Black, fontSize = 14.sp)
+                val u = update
+                if (u == null) {
+                    Text(
+                        "Status update tidak terbaca dari router.",
+                        color = Muted, fontSize = 12.sp
+                    )
+                } else {
+                    Text(
+                        "Terpasang: ${u.installedVersion.ifBlank { "-" }}" +
+                            if (u.channel.isNotBlank()) " • channel ${u.channel}" else "",
+                        fontSize = 12.sp
+                    )
+                    if (u.latestVersion.isNotBlank()) {
+                        Text("Terbaru: ${u.latestVersion}", fontSize = 12.sp)
+                    }
+                    if (u.statusText.isNotBlank()) {
+                        Text(u.statusText, color = Muted, fontSize = 11.sp)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                NeoButton(
+                    if (busy) "Memproses…" else "Cek Update",
+                    fill = CardFill, enabled = !busy
+                ) {
+                    busy = true
+                    msg = null
+                    scope.launch {
+                        try {
+                            val fresh = manager.runNoRetry { SystemRepo.checkForUpdates(it) }
+                            if (fresh != null) update = fresh
+                            msg = when {
+                                fresh == null -> "Status update tidak terbaca."
+                                fresh.updateAvailable ->
+                                    "Ada versi baru: ${fresh.latestVersion} (terpasang ${fresh.installedVersion})."
+                                fresh.latestVersion.isNotBlank() ->
+                                    "RouterOS sudah versi terbaru (${fresh.installedVersion})."
+                                else -> "Pengecekan selesai — router belum melaporkan versi terbaru, coba lagi sebentar lagi."
+                            }
+                            localTick++
+                        } catch (e: Exception) {
+                            msg = friendlyError(e) +
+                                " (cek update butuh internet + DNS yang jalan di router)"
+                        }
+                        busy = false
+                    }
+                }
+                if (update?.updateAvailable == true) {
+                    Spacer(Modifier.height(8.dp))
+                    NeoButton(
+                        "Unduh Saja (Tanpa Pasang)",
+                        fill = CardFill, enabled = !busy
+                    ) {
+                        busy = true
+                        msg = null
+                        scope.launch {
+                            try {
+                                manager.runNoRetry { SystemRepo.downloadUpdate(it) }
+                                msg = "Paket update terunduh ke router. Pasang kapan pun " +
+                                    "dengan tombol Pasang — router akan reboot saat pemasangan."
+                            } catch (e: Exception) {
+                                msg = friendlyError(e)
+                            }
+                            busy = false
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (!confirmInstall) {
+                        NeoButton(
+                            "Pasang Update & Reboot",
+                            fill = MikroRed, textColor = Color.White, enabled = !busy
+                        ) { confirmInstall = true }
+                    } else {
+                        Text(
+                            "Yakin pasang update sekarang? Router akan mengunduh lalu " +
+                                "REBOOT — semua koneksi putus sampai router menyala lagi " +
+                                "dengan versi baru.",
+                            fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MikroRed
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            NeoButton("Batal", Modifier.weight(1f), fill = CardFill) {
+                                confirmInstall = false
+                            }
+                            NeoButton(
+                                "Ya, Pasang", Modifier.weight(1f),
+                                fill = MikroRed, textColor = Color.White
+                            ) {
+                                confirmInstall = false
+                                busy = true
+                                scope.launch {
+                                    try {
+                                        manager.runNoRetry { SystemRepo.installUpdate(it) }
+                                    } catch (e: Exception) {
+                                        // Router biasanya langsung reboot — koneksi putus di tengah jalan itu wajar.
+                                    }
+                                    msg = "Perintah pasang terkirim — router akan reboot dan " +
+                                        "memasang update. Tunggu beberapa menit, lalu sambung lagi " +
+                                        "dan cek versi di Dashboard."
+                                    busy = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            board?.let { b ->
+                Spacer(Modifier.height(12.dp))
+                NeoCard(Modifier.fillMaxWidth()) {
+                    Text("RouterBOOT (Firmware Bootloader)", fontWeight = FontWeight.Black, fontSize = 14.sp)
+                    Text(
+                        "${b.model}${if (b.serialNumber.isNotBlank()) " • SN ${b.serialNumber}" else ""}",
+                        color = Muted, fontSize = 11.sp
+                    )
+                    Text("Firmware sekarang: ${b.currentFirmware.ifBlank { "-" }}", fontSize = 12.sp)
+                    Text("Firmware upgrade: ${b.upgradeFirmware.ifBlank { "-" }}", fontSize = 12.sp)
+                    Spacer(Modifier.height(8.dp))
+                    if (b.updateAvailable) {
+                        if (!confirmFw) {
+                            NeoButton("Upgrade RouterBOOT", fill = CardFill, enabled = !busy) {
+                                confirmFw = true
+                            }
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                NeoButton("Batal", Modifier.weight(1f), fill = CardFill) {
+                                    confirmFw = false
+                                }
+                                NeoButton(
+                                    "Ya, Upgrade", Modifier.weight(1f),
+                                    fill = MikroRed, textColor = Color.White
+                                ) {
+                                    confirmFw = false
+                                    busy = true
+                                    scope.launch {
+                                        try {
+                                            manager.runNoRetry { SystemRepo.upgradeRouterboard(it) }
+                                            msg = "RouterBOOT ditandai untuk upgrade — REBOOT " +
+                                                "router agar firmware baru diterapkan (tombol " +
+                                                "Reboot ada di Dashboard)."
+                                            localTick++
+                                        } catch (e: Exception) {
+                                            msg = friendlyError(e)
+                                        }
+                                        busy = false
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Text("RouterBOOT sudah versi terbaru.", color = Muted, fontSize = 12.sp)
+                    }
+                }
+            }
+            msg?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
 private fun PackagesSection(manager: SessionManager, tick: Int) {
-    PollingCards(
+    Column {
+        UpdateSection(manager, tick)
+        Spacer(Modifier.height(14.dp))
+        Text("PAKET TERPASANG", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Muted)
+        Spacer(Modifier.height(8.dp))
+        PollingCards(
         manager = manager, resetKey = "sys-paket", tick = tick, onChanged = {},
         fetch = { SystemRepo.fetchPackages(it) },
         emptyText = "Tidak ada paket terbaca.",
@@ -752,6 +943,7 @@ private fun PackagesSection(manager: SessionManager, tick: Int) {
                 }
             }
             StateTags("nonaktif" to e.disabled)
+        }
         }
     }
 }

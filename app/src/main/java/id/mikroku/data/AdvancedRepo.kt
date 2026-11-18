@@ -6,6 +6,13 @@ import id.mikroku.api.MikrotikClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+data class DetectInternetInfo(
+    val detectList: String,
+    val states: List<Pair<String, String>>
+) {
+    val enabled: Boolean get() = detectList.isNotBlank() && detectList != "none"
+}
+
 data class WirelessEntry(
     val id: String,
     val name: String,
@@ -432,6 +439,38 @@ object AdvancedRepo {
                     uptime = r["uptime"] ?: ""
                 )
             }
+        } }
+
+    /**
+     * Internet Detect: baca setelan (detect-interface-list) + status per
+     * interface. Mengembalikan null bila menu detect-internet tidak tersedia.
+     */
+    suspend fun fetchDetectInternet(client: MikrotikClient): DetectInternetInfo? =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            try {
+                val settings = client.run("/interface/detect-internet/print").firstOrNull()
+                    ?: return@synchronized null
+                val states = client.run("/interface/detect-internet/state/print").mapNotNull { r ->
+                    val n = r["name"] ?: return@mapNotNull null
+                    val s = r["state"] ?: return@mapNotNull null
+                    n to s
+                }
+                DetectInternetInfo(
+                    detectList = settings["detect-interface-list"] ?: "",
+                    states = states
+                )
+            } catch (e: Exception) {
+                null
+            }
+        } }
+
+    /** Aktifkan (detect-interface-list=all) / matikan (none) Internet Detect. */
+    suspend fun setDetectInternet(client: MikrotikClient, enable: Boolean) =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            client.runCommand(
+                "/interface/detect-internet/set",
+                "=detect-interface-list=${if (enable) "all" else "none"}"
+            )
         } }
 
     /** Perintah API mentah untuk Konsol: path utuh + kata argumen apa adanya. */

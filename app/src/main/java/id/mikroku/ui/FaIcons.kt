@@ -25,6 +25,7 @@ object Fa {
     const val TICKET = ""
     const val ROUTE = ""
     const val ARROWS_LR = ""
+    const val RIGHT_LEFT = ""
     const val SHIELD = ""
     const val ADDRESS_BOOK = ""
     const val WIFI = ""

@@ -916,6 +916,68 @@ fun ToolsScreen(manager: SessionManager, onBack: () -> Unit) {
             Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
         Spacer(Modifier.height(18.dp))
+        var diInfo by remember { mutableStateOf<id.mikroku.data.DetectInternetInfo?>(null) }
+        var diLoaded by remember { mutableStateOf(false) }
+        var diBusy by remember { mutableStateOf(false) }
+        var diMsg by remember { mutableStateOf<String?>(null) }
+        var diTick by remember { mutableStateOf(0) }
+        LaunchedEffect(manager, diTick) {
+            diInfo = try {
+                manager.run { AdvancedRepo.fetchDetectInternet(it) }
+            } catch (e: Exception) {
+                null
+            }
+            diLoaded = true
+        }
+        if (diLoaded && diInfo != null) {
+            val info = diInfo!!
+            Text("Internet Detect", fontWeight = FontWeight.Black, fontSize = 16.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Deteksi otomatis RouterOS: tiap interface dilabeli internet / wan / " +
+                    "lan / no-link. Statusnya tampil sebagai kartu di Dashboard. " +
+                    "Matikan bila router ini tidak perlu deteksi (mis. semua interface " +
+                    "sengaja diatur manual).",
+                color = Muted, fontSize = 12.sp
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Status: " + if (info.enabled) "Aktif (detect-interface-list: ${info.detectList})" else "Tidak aktif",
+                fontWeight = FontWeight.Bold, fontSize = 12.sp
+            )
+            for ((n, s) in info.states) {
+                Text("• $n → $s", fontSize = 12.sp, color = Muted)
+            }
+            Spacer(Modifier.height(8.dp))
+            NeoButton(
+                if (diBusy) "Memproses…" else if (info.enabled) "Matikan Internet Detect" else "Aktifkan Internet Detect",
+                fill = CardFill,
+                enabled = !diBusy
+            ) {
+                diBusy = true
+                diMsg = null
+                scope.launch {
+                    try {
+                        manager.runNoRetry { AdvancedRepo.setDetectInternet(it, !info.enabled) }
+                        diMsg = if (info.enabled) {
+                            "Internet Detect dimatikan."
+                        } else {
+                            "Internet Detect diaktifkan — status per interface muncul " +
+                                "di Dashboard setelah router selesai mendeteksi (beberapa detik)."
+                        }
+                        diTick++
+                    } catch (e: Exception) {
+                        diMsg = friendlyError(e)
+                    }
+                    diBusy = false
+                }
+            }
+            diMsg?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(18.dp))
+        }
         Text("API-SSL (Port 8729)", fontWeight = FontWeight.Black, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(

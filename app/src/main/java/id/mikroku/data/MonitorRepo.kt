@@ -17,7 +17,9 @@ data class DashboardData(
     val temperature: String?,
     val voltage: String?,
     val hotspotActive: Int? = null,
-    val leaseCount: Int? = null
+    val leaseCount: Int? = null,
+    /** Status Internet Detect per interface (nama → internet/wan/lan/no-link). Kosong = fitur tidak aktif. */
+    val internetStates: List<Pair<String, String>> = emptyList()
 )
 
 data class InterfaceData(
@@ -89,7 +91,17 @@ object MonitorRepo {
             temperature = health["temperature"],
             voltage = health["voltage"],
             hotspotActive = hotspotActive,
-            leaseCount = leaseCount
+            leaseCount = leaseCount,
+            internetStates = try {
+                client.run("/interface/detect-internet/state/print")
+                    .mapNotNull { r ->
+                        val n = r["name"] ?: return@mapNotNull null
+                        val s = r["state"] ?: return@mapNotNull null
+                        n to s
+                    }
+            } catch (e: Exception) {
+                emptyList() // detect-internet tidak aktif / tidak tersedia
+            }
         )
     } }
 

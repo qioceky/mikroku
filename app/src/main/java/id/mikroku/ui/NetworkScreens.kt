@@ -3,6 +3,8 @@ package id.mikroku.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +63,7 @@ private val menuCategories: List<Pair<String, List<MenuItem>>> = listOf(
     ),
     "Keamanan" to listOf(
         MenuItem("firewall", Fa.SHIELD, "Firewall", "Filter, NAT, mangle — lihat + ubah"),
+        MenuItem("portforward", Fa.RIGHT_LEFT, "Port Forwarding", "Teruskan port publik ke perangkat LAN (wizard)"),
         MenuItem("addrlist", Fa.ADDRESS_BOOK, "Address List", "Daftar alamat untuk firewall"),
         MenuItem("koneksi", Fa.DIAGRAM, "Koneksi Aktif", "Tracking koneksi yang sedang lewat"),
         MenuItem("service", Fa.BELL, "IP Service", "Service router: api, winbox, www, ssh")
@@ -183,6 +186,7 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "route" -> RouteScreen(manager, onBack)
         "arp" -> ArpScreen(manager, onBack)
         "firewall" -> FirewallScreen(manager, onBack)
+        "portforward" -> PortForwardScreen(manager, onBack)
         "addrlist" -> AddressListScreen(manager, onBack)
         "koneksi" -> ConnectionsScreen(manager, onBack)
         "hotspot" -> HotspotScreen(manager, onBack)
@@ -984,6 +988,207 @@ private fun FirewallScreen(manager: SessionManager, onBack: () -> Unit) {
                 }
                 item { Spacer(Modifier.height(8.dp)) }
             }
+        }
+    }
+}
+
+// ---------------- Port Forwarding (wizard) ----------------
+
+@Composable
+private fun PfField(
+    value: String,
+    onValue: (String) -> Unit,
+    label: String,
+    hint: String = "",
+    numeric: Boolean = false
+) {
+    Column {
+        androidx.compose.material3.OutlinedTextField(
+            value, onValue,
+            Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text(label) },
+            placeholder = if (hint.isNotBlank()) ({ Text(hint) }) else null,
+            shape = RoundedCornerShape(12.dp),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = if (numeric) androidx.compose.ui.text.input.KeyboardType.Number
+                else androidx.compose.ui.text.input.KeyboardType.Text
+            ),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Ink,
+                unfocusedBorderColor = Ink.copy(alpha = 0.4f),
+                focusedContainerColor = CardFill,
+                unfocusedContainerColor = CardFill,
+                cursorColor = Ink
+            )
+        )
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/**
+ * Wizard Port Forwarding: formulir sederhana yang menulis rule dst-nat
+ * biasa (komentar berawalan MikroKu-PF) + daftar rule hasil wizard dengan
+ * hapus/nonaktifkan. Rule NAT manual user tidak ditampilkan di sini.
+ */
+@Composable
+fun PortForwardScreen(manager: SessionManager, onBack: () -> Unit) {
+    var tick by remember { mutableStateOf(0) }
+    var rows by remember { mutableStateOf<List<FirewallRule>?>(null) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var ifaces by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    var protocol by remember { mutableStateOf("tcp") }
+    var inIface by remember { mutableStateOf("") }
+    var dstAddress by remember { mutableStateOf("") }
+    var dstPort by remember { mutableStateOf("") }
+    var toAddress by remember { mutableStateOf("") }
+    var toPort by remember { mutableStateOf("") }
+    var toPortEdited by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(manager, tick) {
+        try { ifaces = manager.run { NetworkRepo.fetchInterfaceNames(it) } } catch (e: Exception) { }
+        while (isActive) {
+            try {
+                rows = manager.run { NetworkRepo.fetchPortForwards(it) }
+                loadError = null
+            } catch (e: Exception) {
+                loadError = friendlyError(e)
+            }
+            delay(10_000)
+        }
+    }
+
+    Column {
+        SectionHeader("Port Forwarding", onBack) { tick++ }
+        Spacer(Modifier.height(10.dp))
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            Text(
+                "Teruskan port dari sisi publik router ke satu perangkat di LAN " +
+                    "(mis. port 8080 publik → web server 192.168.88.10 port 80). " +
+                    "Wizard ini menulis rule dst-nat biasa di Firewall → NAT dengan " +
+                    "komentar penanda MikroKu-PF; rule NAT manualmu tidak tampil di sini.",
+                color = Muted, fontSize = 12.sp
+            )
+            Spacer(Modifier.height(10.dp))
+            Text("Protokol", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            KindChips(
+                listOf("tcp" to "TCP", "udp" to "UDP", "both" to "Keduanya"),
+                protocol
+            ) { protocol = it }
+            Spacer(Modifier.height(8.dp))
+            Text("Interface Masuk (publik)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            KindChips(
+                listOf("" to "Semua") + ifaces.map { it to it },
+                inIface
+            ) { inIface = it }
+            Spacer(Modifier.height(8.dp))
+            PfField(dstAddress, { dstAddress = it }, "Alamat Tujuan Publik (opsional)", "kosong = IP publik router")
+            PfField(dstPort, {
+                dstPort = it
+                if (!toPortEdited) toPort = it
+            }, "Port Publik", "mis. 8080", numeric = true)
+            PfField(toAddress, { toAddress = it }, "IP Perangkat LAN", "mis. 192.168.88.10")
+            PfField(toPort, {
+                toPort = it
+                toPortEdited = true
+            }, "Port Perangkat", "mis. 80", numeric = true)
+            PfField(note, { note = it }, "Catatan (opsional)", "mis. CCTV gudang")
+            NeoButton(
+                if (busy) "Menulis Rule…" else "Tambah Port Forwarding",
+                fill = CardFill, enabled = !busy
+            ) {
+                val dp = dstPort.trim().toIntOrNull()
+                val tp = toPort.trim().toIntOrNull()
+                when {
+                    dp == null || dp !in 1..65535 ->
+                        msg = "Port Publik harus angka 1–65535."
+                    tp == null || tp !in 1..65535 ->
+                        msg = "Port Perangkat harus angka 1–65535."
+                    toAddress.isBlank() ->
+                        msg = "IP Perangkat LAN wajib diisi."
+                    else -> {
+                        busy = true
+                        msg = null
+                        scope.launch {
+                            try {
+                                val n = manager.runNoRetry {
+                                    NetworkRepo.addPortForward(
+                                        it, protocol, inIface, dstAddress.trim(),
+                                        dp.toString(), toAddress.trim(), tp.toString(),
+                                        note.trim()
+                                    )
+                                }
+                                msg = "$n rule port forwarding ditambahkan (lihat Firewall → NAT). " +
+                                    "Pastikan perangkat tujuan memang mendengarkan di port itu."
+                                tick++
+                            } catch (e: Exception) {
+                                msg = friendlyError(e)
+                            }
+                            busy = false
+                        }
+                    }
+                }
+            }
+            msg?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(18.dp))
+            Text("SUDAH DIBUAT WIZARD INI", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Muted)
+            Spacer(Modifier.height(8.dp))
+            loadError?.let {
+                Text(it, color = MikroRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+            }
+            val list = rows
+            when {
+                list == null -> Text("Memuat…", fontWeight = FontWeight.Bold)
+                list.isEmpty() -> Text(
+                    "Belum ada port forwarding dari wizard ini.",
+                    color = Muted, fontSize = 12.sp
+                )
+                else -> for (e in list) {
+                    NeoCard(Modifier.fillMaxWidth()) {
+                        Text(
+                            "${e.protocol.uppercase()} ${e.dstAddress.ifBlank { "*" }}:${e.dstPort} → " +
+                                "${e.toAddresses}:${e.toPorts}",
+                            fontWeight = FontWeight.Black, fontSize = 14.sp
+                        )
+                        val meta = buildString {
+                            if (e.inInterface.isNotBlank()) append("masuk: ${e.inInterface} • ")
+                            append(e.comment)
+                        }
+                        Text(meta, color = Muted, fontSize = 11.sp)
+                        StateTags("nonaktif" to e.disabled)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SmallButton(if (e.disabled) "Aktifkan" else "Nonaktifkan") {
+                                scope.launch {
+                                    try {
+                                        manager.run {
+                                            NetworkRepo.setFirewallDisabled(it, "nat", e.id, !e.disabled)
+                                        }
+                                        tick++
+                                    } catch (err: Exception) {
+                                        msg = friendlyError(err)
+                                    }
+                                }
+                            }
+                            ConfirmActionButton("Hapus", run = {
+                                manager.runNoRetry { CrudRepo.remove(it, "/ip/firewall/nat", e.id) }
+                            }, onDone = { tick++ })
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
