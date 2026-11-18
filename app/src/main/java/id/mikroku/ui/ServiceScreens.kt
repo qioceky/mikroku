@@ -915,6 +915,42 @@ fun ToolsScreen(manager: SessionManager, onBack: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
+        Spacer(Modifier.height(18.dp))
+        Text("API-SSL (Port 8729)", fontWeight = FontWeight.Black, fontSize = 16.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Service api-ssl bawaan RouterOS belum punya sertifikat — tanpa itu koneksi " +
+                "API-SSL selalu gagal jabat tangan (handshake). Tombol ini membuat sertifikat " +
+                "self-signed 'mikroku-api' di router, menandatanganinya, memasangnya ke " +
+                "api-ssl, dan mengaktifkannya. Jalankan saat tersambung lewat API 8728; " +
+                "perlu policy write. Kunci 1024-bit dipakai agar cepat dibuat di router " +
+                "kecil — koneksimu tetap diamankan sidik jari sertifikat (TOFU) oleh MikroKu. " +
+                "Bila sempat timeout di router lambat, ketuk lagi: langkah yang sudah beres dilewati.",
+            color = Muted, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        var sslBusy by remember { mutableStateOf(false) }
+        var sslMsg by remember { mutableStateOf<String?>(null) }
+        NeoButton(
+            if (sslBusy) "Menyiapkan…" else "Siapkan API-SSL",
+            fill = CardFill,
+            enabled = !sslBusy
+        ) {
+            sslBusy = true
+            sslMsg = null
+            scope.launch {
+                try {
+                    sslMsg = manager.runNoRetry { AdvancedRepo.setupApiSsl(it) }
+                } catch (e: Exception) {
+                    sslMsg = friendlyError(e)
+                }
+                sslBusy = false
+            }
+        }
+        sslMsg?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
         Spacer(Modifier.height(16.dp))
     }
 }

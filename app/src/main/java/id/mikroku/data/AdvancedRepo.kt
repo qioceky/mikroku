@@ -1,5 +1,6 @@
 package id.mikroku.data
 
+import id.mikroku.api.ApiException
 import id.mikroku.api.MikrotikClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -283,6 +284,59 @@ object AdvancedRepo {
                     disabled = r["disabled"] == "true"
                 )
             }
+        } }
+
+    /**
+     * Siapkan API-SSL sekali klik: service api-ssl bawaan RouterOS tidak punya
+     * sertifikat (certificate=none) sehingga jabat tangan TLS selalu ditolak.
+     * Fungsi ini membuat sertifikat self-signed 'mikroku-api' (kunci 1024-bit
+     * agar cepat dibuat di router kecil), menandatanganinya, memasangnya ke
+     * service api-ssl, dan mengaktifkannya. Aman diulang: langkah yang sudah
+     * beres dilewati. Mengembalikan pesan status untuk ditampilkan ke user.
+     */
+    suspend fun setupApiSsl(client: MikrotikClient): String =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            val svc = client.run("/ip/service/print").firstOrNull { it["name"] == "api-ssl" }
+                ?: throw ApiException("Service api-ssl tidak ditemukan di router")
+            val svcId = svc[".id"] ?: throw ApiException("ID service api-ssl tidak terbaca")
+            val port = svc["port"] ?: "8729"
+            val currentCert = (svc["certificate"] ?: "none").ifBlank { "none" }
+            if (currentCert != "none") {
+                if (svc["disabled"] == "true") {
+                    client.runCommand("/ip/service/set", "=.id=$svcId", "=disabled=no")
+                }
+                return@synchronized "API-SSL sudah siap: sertifikat '$currentCert' terpasang " +
+                    "dan service aktif di port $port — tidak ada yang diubah. " +
+                    "Sambung ulang dengan mode API-SSL $port."
+            }
+            val certName = "mikroku-api"
+            var cert = client.run("/certificate/print").firstOrNull { it["name"] == certName }
+            if (cert == null) {
+                client.runCommand(
+                    "/certificate/add",
+                    "=name=$certName",
+                    "=common-name=$certName",
+                    "=days-valid=3650",
+                    "=key-size=1024",
+                    "=key-usage=key-cert-sign,crl-sign,tls-server"
+                )
+                cert = client.run("/certificate/print").firstOrNull { it["name"] == certName }
+                    ?: throw ApiException("Sertifikat gagal dibuat di router")
+            }
+            val certId = cert[".id"] ?: throw ApiException("ID sertifikat tidak terbaca")
+            if (cert["invalid-after"].isNullOrBlank()) {
+                client.runCommand("/certificate/sign", "=number=$certId", "=ca-crl-host=127.0.0.1")
+            }
+            client.runCommand(
+                "/ip/service/set", "=.id=$svcId",
+                "=certificate=$certName", "=disabled=no"
+            )
+            val after = client.run("/ip/service/print").firstOrNull { it["name"] == "api-ssl" }
+            if (after?.get("certificate") != certName) {
+                throw ApiException("Gagal memasang sertifikat ke service api-ssl")
+            }
+            "API-SSL siap: sertifikat '$certName' dibuat & terpasang, service aktif " +
+                "di port $port. Putuskan koneksi ini, lalu sambung ulang dengan mode API-SSL $port."
         } }
 
     suspend fun fetchNeighbors(client: MikrotikClient): List<NeighborEntry> =

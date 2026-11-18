@@ -499,6 +499,11 @@ fun friendlyError(e: Exception): String {
     }
     if (e is ApiTrapException) return e.trapMessage
     val msg = raw
+    if (msg.contains("SSL", ignoreCase = true) || msg.contains("handshake", ignoreCase = true)) {
+        return "Jabat tangan TLS (API-SSL) ditolak router — hampir selalu karena service " +
+            "api-ssl belum dipasangi sertifikat. Sambung lewat API 8728 dulu, lalu jalankan " +
+            "Menu → Tools → Siapkan API-SSL, kemudian sambung ulang via 8729."
+    }
     return when {
         msg.contains("Broken pipe", ignoreCase = true) ||
             msg.contains("Connection reset", ignoreCase = true) ||
