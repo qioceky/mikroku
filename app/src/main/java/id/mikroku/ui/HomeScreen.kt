@@ -126,7 +126,8 @@ fun HomeScreen(
             username = username.trim(),
             password = password,
             note = existing?.note ?: "",
-            certFingerprint = existing?.certFingerprint
+            certFingerprint = existing?.certFingerprint,
+            sshFingerprint = existing?.sshFingerprint
         )
     }
 
@@ -402,7 +403,14 @@ private fun DiscoveredTab(onPick: (DiscoveredRouter) -> Unit) {
                     "Tidak ada router ditemukan. Pastikan HP tersambung ke WiFi yang sama dengan router dan penemuan tetangga (neighbor discovery) router aktif."
                 else "Ditemukan ${results.size} router."
             } catch (e: Exception) {
-                message = "Gagal memindai: ${e.message}"
+                message = if (e is java.net.BindException ||
+                    (e.message?.contains("already in use", ignoreCase = true) == true)
+                ) {
+                    "Port penemuan (UDP 5678) sedang dipakai aplikasi lain — tutup aplikasi " +
+                        "MikroTik/WinBox lain di HP ini, lalu pindai ulang."
+                } else {
+                    "Gagal memindai: ${e.message}"
+                }
             }
             scanning = false
         }

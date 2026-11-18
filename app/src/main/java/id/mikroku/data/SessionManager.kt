@@ -1,5 +1,6 @@
 package id.mikroku.data
 
+import id.mikroku.api.ApiException
 import id.mikroku.api.MikrotikClient
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -17,22 +18,45 @@ import java.io.IOException
  * pulih sendiri tanpa pengguna keluar-masuk.
  *
  * ApiTrapException TIDAK memicu sambung ulang: itu penolakan sah dari
- * router dan koneksinya masih sehat.
+ * router dan koneksinya masih sehat. ApiException dari lapisan protokol
+ * (aliran balasan desinkron, word tidak wajar, koneksi ditutup di tengah
+ * balasan) MEMBUANG sesi — tanpa itu, satu desinkron membuat semua
+ * perintah berikutnya gagal sampai pengguna keluar layar.
  */
 class SessionManager(
     private val profile: RouterProfile,
-    private val onFingerprintLearned: (String) -> Unit = {}
+    private val onFingerprintLearned: (String) -> Unit = {},
+    private val onSshFingerprintLearned: (String) -> Unit = {}
 ) : AutoCloseable {
 
     private val mutex = Mutex()
     private var session: RouterSession? = null
     private var learnedFingerprint: String? = profile.certFingerprint
+    private var learnedSshFingerprint: String? = profile.sshFingerprint
 
     /** Klien aktif; menyambung dulu bila belum ada sesi. */
     suspend fun client(): MikrotikClient = ensure().client
 
     /** Profil koneksi — dipakai transfer file SFTP (kredensial yang sama). */
     fun connectionProfile(): RouterProfile = profile
+
+    /**
+     * Profil untuk SFTP: sidik jari SSH yang dipelajari sesi ini (bila ada)
+     * ikut serta agar transfer berikutnya langsung menegakkannya.
+     */
+    fun sftpProfile(): RouterProfile {
+        val fp = learnedSshFingerprint
+        return if (fp != null && fp != profile.sshFingerprint)
+            profile.copy(sshFingerprint = fp) else profile
+    }
+
+    /** Catat sidik jari SSH yang dipelajari dari transfer pertama. */
+    fun learnSshFingerprint(fp: String) {
+        if (learnedSshFingerprint == null) {
+            learnedSshFingerprint = fp
+            onSshFingerprintLearned(fp)
+        }
+    }
 
     /**
      * Jalankan [block] dengan klien aktif. Pada kegagalan koneksi,
@@ -43,13 +67,19 @@ class SessionManager(
         return try {
             block(first.client)
         } catch (e: IOException) {
-            val second = reconnect()
-            try {
-                block(second.client)
-            } catch (e2: IOException) {
-                invalidate()
-                throw e2
-            }
+            retryOnce(block)
+        } catch (e: ApiException) {
+            retryOnce(block)
+        }
+    }
+
+    private suspend fun <T> retryOnce(block: suspend (MikrotikClient) -> T): T {
+        val second = reconnect()
+        return try {
+            block(second.client)
+        } catch (e2: Exception) {
+            if (e2 is IOException || e2 is ApiException) invalidate()
+            throw e2
         }
     }
 
@@ -64,6 +94,9 @@ class SessionManager(
         return try {
             block(s.client)
         } catch (e: IOException) {
+            invalidate()
+            throw e
+        } catch (e: ApiException) {
             invalidate()
             throw e
         }

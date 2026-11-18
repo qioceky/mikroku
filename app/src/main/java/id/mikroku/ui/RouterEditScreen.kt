@@ -52,6 +52,7 @@ fun RouterEditScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var clearFingerprints by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun buildProfile(): RouterProfile? {
@@ -66,9 +67,15 @@ fun RouterEditScreen(
             username = username.trim(),
             password = password,
             note = note.trim(),
-            // Ganti mode/host membuat sidik jari lama tidak berlaku.
-            certFingerprint = if (initial != null && initial.host == host.trim() && initial.useSsl == useSsl)
-                initial.certFingerprint else null
+            // Ganti mode/host membuat sidik jari lama tidak berlaku; tombol
+            // "Hapus sidik jari" di bawah juga mengosongkannya (untuk router
+            // yang diganti/diinstal ulang di alamat yang sama).
+            certFingerprint = if (!clearFingerprints && initial != null &&
+                initial.host == host.trim() && initial.useSsl == useSsl
+            ) initial.certFingerprint else null,
+            sshFingerprint = if (!clearFingerprints && initial != null &&
+                initial.host == host.trim()
+            ) initial.sshFingerprint else null
         )
     }
 
@@ -118,6 +125,27 @@ fun RouterEditScreen(
             Spacer(Modifier.height(8.dp))
         }
         Field("Catatan (opsional)", note) { note = it }
+
+        if (initial != null && (initial.certFingerprint != null || initial.sshFingerprint != null)) {
+            NeoCard {
+                Text(
+                    "Sidik jari keamanan tersimpan untuk router ini " +
+                        "(sertifikat API-SSL & kunci SSH). Bila router diganti atau diinstal " +
+                        "ulang, hapus sidik jarinya agar koneksi berikutnya mempelajarinya ulang.",
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                if (clearFingerprints) {
+                    Text(
+                        "Sidik jari akan dihapus saat kamu menekan Simpan.",
+                        fontSize = 12.sp, color = MikroRed, fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    NeoButton("Hapus Sidik Jari", fill = CardFill) { clearFingerprints = true }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
 
         status?.let {
             Spacer(Modifier.height(4.dp))

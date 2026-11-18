@@ -15,7 +15,9 @@ data class RouterProfile(
     val password: String,
     val note: String = "",
     /** Sidik jari sertifikat api-ssl (TOFU); null bila belum pernah konek SSL. */
-    val certFingerprint: String? = null
+    val certFingerprint: String? = null,
+    /** Sidik jari kunci host SSH untuk SFTP (TOFU); null bila belum pernah transfer. */
+    val sshFingerprint: String? = null
 ) {
     val defaultPort: Int
         get() = if (useSsl) MikrotikClient.DEFAULT_PORT_SSL else MikrotikClient.DEFAULT_PORT_PLAIN
@@ -30,6 +32,7 @@ data class RouterProfile(
         put("password", password)
         put("note", note)
         if (certFingerprint != null) put("certFingerprint", certFingerprint)
+        if (sshFingerprint != null) put("sshFingerprint", sshFingerprint)
     }
 
     companion object {
@@ -42,7 +45,8 @@ data class RouterProfile(
             username = o.optString("username", "admin"),
             password = o.optString("password", ""),
             note = o.optString("note", ""),
-            certFingerprint = if (o.has("certFingerprint")) o.optString("certFingerprint") else null
+            certFingerprint = if (o.has("certFingerprint")) o.optString("certFingerprint") else null,
+            sshFingerprint = if (o.has("sshFingerprint")) o.optString("sshFingerprint") else null
         )
     }
 }

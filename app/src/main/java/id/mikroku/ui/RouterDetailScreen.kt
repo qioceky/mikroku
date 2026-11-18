@@ -55,9 +55,12 @@ import kotlinx.coroutines.launch
 fun RouterDetailScreen(
     profile: RouterProfile,
     onBack: () -> Unit,
-    onFingerprintLearned: (String) -> Unit
+    onFingerprintLearned: (String) -> Unit,
+    onSshFingerprintLearned: (String) -> Unit = {}
 ) {
-    val manager = remember(profile.id) { SessionManager(profile, onFingerprintLearned) }
+    val manager = remember(profile.id) {
+        SessionManager(profile, onFingerprintLearned, onSshFingerprintLearned)
+    }
     var connected by remember { mutableStateOf(false) }
     var connectError by remember { mutableStateOf<String?>(null) }
     var connectAttempt by remember { mutableStateOf(0) }
@@ -499,6 +502,7 @@ fun friendlyError(e: Exception): String {
     }
     if (e is ApiTrapException) return e.trapMessage
     val msg = raw
+    if (msg.contains("Sidik jari", ignoreCase = true)) return msg
     if (msg.contains("SSL", ignoreCase = true) || msg.contains("handshake", ignoreCase = true)) {
         return "Jabat tangan TLS (API-SSL) ditolak router. Sambung lewat API 8728, lalu " +
             "jalankan Menu → Tools → Siapkan API-SSL (memasang sertifikat + memulai ulang " +

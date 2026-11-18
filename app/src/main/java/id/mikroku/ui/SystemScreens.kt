@@ -560,9 +560,9 @@ private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Un
     var form by remember { mutableStateOf<CrudFormSpec?>(null) }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
+    var progressText by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val profile = remember(manager) { manager.connectionProfile() }
 
     var pendingDownload by remember { mutableStateOf<FileEntry?>(null) }
     val downloadLauncher = rememberLauncherForActivityResult(
@@ -574,14 +574,31 @@ private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Un
             scope.launch {
                 busy = true
                 msg = null
+                progressText = null
+                var lastShown = ""
                 try {
                     val out = context.contentResolver.openOutputStream(uri)
                         ?: throw IllegalStateException("Tidak bisa membuka file tujuan di HP")
-                    out.use { SftpRepo.download(profile, entry.name, it) }
+                    out.use {
+                        SftpRepo.download(
+                            manager.sftpProfile(), entry.name, it,
+                            onProgress = { done, total ->
+                                val text = if (total > 0)
+                                    "Mengunduh ${entry.name}: ${formatBytes(done)} / ${formatBytes(total)}"
+                                else "Mengunduh ${entry.name}: ${formatBytes(done)}"
+                                if (text != lastShown) {
+                                    lastShown = text
+                                    progressText = text
+                                }
+                            },
+                            onFingerprintLearned = { fp -> manager.learnSshFingerprint(fp) }
+                        )
+                    }
                     msg = "Terunduh ke HP: ${entry.name}"
                 } catch (e: Exception) {
                     msg = sftpFriendlyError(e)
                 }
+                progressText = null
                 busy = false
             }
         }
@@ -609,7 +626,12 @@ private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Un
             try {
                 val input = context.contentResolver.openInputStream(uri)
                     ?: throw IllegalStateException("Tidak bisa membaca file pilihan dari HP")
-                input.use { SftpRepo.upload(profile, it, remoteName) }
+                input.use {
+                    SftpRepo.upload(
+                        manager.sftpProfile(), it, remoteName,
+                        onFingerprintLearned = { fp -> manager.learnSshFingerprint(fp) }
+                    )
+                }
                 msg = "Terunggah ke router: $remoteName"
                 pickedUpload = null
                 uploadTarget = null
@@ -664,7 +686,7 @@ private fun FilesSection(manager: SessionManager, tick: Int, onChanged: () -> Un
         }
         if (busy) {
             Spacer(Modifier.height(8.dp))
-            Text("Mentransfer file…", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(progressText ?: "Mentransfer file…", fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
         msg?.let {
             Spacer(Modifier.height(8.dp))

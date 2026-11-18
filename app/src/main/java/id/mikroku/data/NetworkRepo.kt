@@ -211,7 +211,10 @@ object NetworkRepo {
     /** Koneksi aktif dari tabel tracking firewall (dibatasi 500 entri pertama). */
     suspend fun fetchConnections(client: MikrotikClient): List<ConnectionEntry> =
         withContext(Dispatchers.IO) { synchronized(client) {
-            client.run("/ip/firewall/connection/print").take(500).map { r ->
+            client.run(
+                "/ip/firewall/connection/print",
+                "=.proplist=.id,protocol,src-address,dst-address,tcp-state,connection-state,timeout,orig-bytes,repl-bytes"
+            ).take(500).map { r ->
                 ConnectionEntry(
                     id = r[".id"] ?: "",
                     protocol = r["protocol"] ?: "",

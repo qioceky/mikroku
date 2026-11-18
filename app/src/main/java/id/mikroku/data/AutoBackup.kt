@@ -34,7 +34,10 @@ class AutoBackupWorker(context: Context, params: WorkerParameters) :
             val treeUri = SettingsStore.autoBackupTreeUri(ctx)
             if (routerId == null || treeUri == null) return Result.success()
 
-            val profile = RouterStore(ctx).load().firstOrNull { it.id == routerId }
+            val store = RouterStore(ctx)
+            val allRouters = store.load()
+            var effectiveProfile = allRouters.firstOrNull { it.id == routerId }
+            val profile = effectiveProfile
             if (profile == null) {
                 SettingsStore.setAutoBackupLastRun(
                     ctx, "$stamp — Gagal: router tidak lagi ada di daftar tersimpan"
@@ -65,15 +68,37 @@ class AutoBackupWorker(context: Context, params: WorkerParameters) :
                 )
                 return Result.success()
             }
+            // Sidik jari SSH pertama yang dipelajari disimpan ke profil —
+            // kecuali bacaan penyimpanan bermasalah (jangan menimpa data lama).
+            val learnFp: (String) -> Unit = { fp ->
+                val current = effectiveProfile
+                if (store.lastLoadError == null && current != null && current.sshFingerprint == null) {
+                    val updated = current.copy(sshFingerprint = fp)
+                    effectiveProfile = updated
+                    try {
+                        store.save(allRouters.map { if (it.id == updated.id) updated else it })
+                    } catch (_: Exception) {}
+                }
+            }
+            var cleaned = 0
             for (fileName in listOf("$base.backup", "$base.rsc")) {
                 val doc = tree.createFile("application/octet-stream", fileName)
                     ?: throw IllegalStateException("tidak bisa membuat $fileName di folder tujuan")
                 val out = ctx.contentResolver.openOutputStream(doc.uri, "w")
                     ?: throw IllegalStateException("tidak bisa membuka file tujuan")
-                out.use { SftpRepo.download(profile, fileName, it) }
+                val dlProfile = effectiveProfile ?: profile
+                out.use { SftpRepo.download(dlProfile, fileName, it, onFingerprintLearned = learnFp) }
+                // File di router DIHAPUS setelah salinannya aman di HP — tanpa
+                // ini, backup terjadwal menumpuk file di penyimpanan router
+                // yang kecil sampai penuh. Gagal hapus tidak menggagalkan backup.
+                try {
+                    SftpRepo.delete(effectiveProfile ?: profile, fileName, onFingerprintLearned = learnFp)
+                    cleaned++
+                } catch (_: Exception) {}
             }
             SettingsStore.setAutoBackupLastRun(
-                ctx, "$stamp — Berhasil: $base.backup + $base.rsc tersimpan di HP"
+                ctx, "$stamp — Berhasil: $base.backup + $base.rsc tersimpan di HP" +
+                    if (cleaned == 2) "; file di router dibersihkan" else ""
             )
         } catch (e: Exception) {
             SettingsStore.setAutoBackupLastRun(

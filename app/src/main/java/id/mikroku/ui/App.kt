@@ -60,8 +60,12 @@ fun MikroKuApp() {
         }
     }
     var routers by remember { mutableStateOf(store.load()) }
+    // Bila penyimpanan router gagal dibaca, beri tahu user secara terbuka —
+    // jangan sampai daftar tersimpan tampak "kosong" tanpa penjelasan.
+    var storeError by remember { mutableStateOf(store.lastLoadError) }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     val statuses = remember { mutableStateMapOf<String, Boolean>() }
+    val statusCheckedAt = remember { mutableStateMapOf<String, Long>() }
     val scope = rememberCoroutineScope()
     var prefill by remember { mutableStateOf<RouterProfile?>(null) }
     var prefillRequest by remember { mutableStateOf(0) }
@@ -78,12 +82,18 @@ fun MikroKuApp() {
         )
     }
 
-    fun checkStatuses() {
+    fun checkStatuses(force: Boolean = false) {
+        // Cek status = login penuh ke tiap router. Tanpa jeda, tiap kembali
+        // ke Home memicu login ke SEMUA router (log router penuh, router mati
+        // memakan timeout) — beri jeda 90 detik kecuali dipaksa (tombol Segarkan).
+        val now = System.currentTimeMillis()
         routers.forEach { profile ->
             if (profile.password.isBlank()) {
                 statuses[profile.id] = false
                 return@forEach
             }
+            if (!force && now - (statusCheckedAt[profile.id] ?: 0L) < 90_000) return@forEach
+            statusCheckedAt[profile.id] = now
             scope.launch {
                 val fp = try {
                     MonitorRepo.testConnection(profile)
@@ -126,7 +136,7 @@ fun MikroKuApp() {
                             }
                         },
                         onEditSaved = { screen = Screen.EditRouter(it) },
-                        onRefreshSaved = { statuses.clear(); checkStatuses() },
+                        onRefreshSaved = { statuses.clear(); checkStatuses(force = true) },
                         onGuide = { screen = Screen.Guide },
                         onAbout = { screen = Screen.About }
                     )
@@ -150,10 +160,27 @@ fun MikroKuApp() {
                         if (routers.any { it.id == s.profile.id }) {
                             persist(routers.map { if (it.id == s.profile.id) it.copy(certFingerprint = fp) else it })
                         }
+                    },
+                    onSshFingerprintLearned = { fp ->
+                        if (routers.any { it.id == s.profile.id }) {
+                            persist(routers.map { if (it.id == s.profile.id) it.copy(sshFingerprint = fp) else it })
+                        }
                     }
                 )
                 is Screen.Guide -> GuideScreen(onBack = { screen = Screen.Home })
                 is Screen.About -> AboutScreen(onBack = { screen = Screen.Home })
+            }
+            storeError?.let { err ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { storeError = null },
+                    title = { Text("Penyimpanan router bermasalah", fontWeight = FontWeight.Bold) },
+                    text = { Text(err, fontSize = 13.sp) },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { storeError = null }) {
+                            Text("Mengerti", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                )
             }
         }
     }

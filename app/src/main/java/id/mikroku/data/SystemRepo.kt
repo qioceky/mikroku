@@ -155,7 +155,8 @@ object SystemRepo {
     /** Log terbaru dulu, dibatasi [limit] entri terakhir. */
     suspend fun fetchLogs(client: MikrotikClient, limit: Int = 100): List<LogEntry> =
         withContext(Dispatchers.IO) { synchronized(client) {
-            client.run("/log/print").takeLast(limit).reversed().map { r ->
+            client.run("/log/print", "=.proplist=.id,time,topics,message")
+                .takeLast(limit).reversed().map { r ->
                 LogEntry(
                     id = r[".id"] ?: "",
                     time = r["time"] ?: "",

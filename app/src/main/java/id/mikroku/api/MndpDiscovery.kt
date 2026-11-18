@@ -35,7 +35,12 @@ object MndpDiscovery {
 
     suspend fun discover(timeoutMs: Int = 4_000): List<DiscoveredRouter> = withContext(Dispatchers.IO) {
         val found = LinkedHashMap<String, DiscoveredRouter>()
-        DatagramSocket(MNDP_PORT).use { socket ->
+        // reuseAddress: port 5678 tidak gagal bind hanya karena sisa soket
+        // pemindaian sebelumnya/aplikasi lain belum sepenuhnya melepasnya.
+        val udp = DatagramSocket(null)
+        udp.reuseAddress = true
+        udp.bind(java.net.InetSocketAddress(MNDP_PORT))
+        udp.use { socket ->
             socket.broadcast = true
             socket.soTimeout = 500
             // Paket refresh 4 byte (header kosong) — semua RouterOS di LAN menjawab.

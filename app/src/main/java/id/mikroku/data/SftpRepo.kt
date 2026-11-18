@@ -1,13 +1,16 @@
 package id.mikroku.data
 
+import id.mikroku.api.ApiException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.schmizz.sshj.SSHClient
+import net.schmizz.sshj.common.SecurityUtils
 import net.schmizz.sshj.sftp.OpenMode
-import net.schmizz.sshj.transport.verification.PromiscuousVerifier
+import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.io.InputStream
 import java.io.OutputStream
+import java.security.PublicKey
 import java.security.Security
 import java.util.EnumSet
 
@@ -19,10 +22,19 @@ import java.util.EnumSet
  * seperti login API. Syarat di router: service ssh aktif dan grup user
  * memiliki policy `ssh` (untuk login) + `ftp` (untuk transfer file) —
  * grup `full` bawaan sudah mencakup keduanya.
+ *
+ * Kunci host SSH diverifikasi dengan pola TOFU (trust on first use),
+ * sama seperti sidik jari sertifikat API-SSL: koneksi pertama mencatat
+ * sidik jarinya ke profil router; koneksi berikutnya DITOLAK bila sidik
+ * jari berubah — password router tidak pernah dikirim ke server SSH
+ * yang tidak dikenal.
  */
 object SftpRepo {
 
     private const val SSH_PORT = 22
+
+    /** Batas ukuran satu file unduhan — file router wajarnya jauh di bawah ini. */
+    const val MAX_DOWNLOAD_BYTES = 200L * 1024 * 1024
 
     init {
         // sshj di Android memerlukan BouncyCastle versi lengkap dari library;
@@ -37,22 +49,70 @@ object SftpRepo {
         }
     }
 
-    private fun connect(profile: RouterProfile): SSHClient {
+    private fun connect(
+        profile: RouterProfile,
+        onFingerprintLearned: (String) -> Unit = {}
+    ): SSHClient {
         val ssh = SSHClient()
         ssh.connectTimeout = 12_000
         ssh.timeout = 30_000
-        ssh.addHostKeyVerifier(PromiscuousVerifier())
-        ssh.connect(profile.host.substringBefore(":"), SSH_PORT)
-        ssh.authPassword(profile.username, profile.password)
+        val expected = profile.sshFingerprint
+        var mismatchMessage: String? = null
+        ssh.addHostKeyVerifier(object : HostKeyVerifier {
+            override fun verify(hostname: String, port: Int, key: PublicKey): Boolean {
+                val fp = SecurityUtils.getFingerprint(key)
+                return when {
+                    expected == null -> {
+                        onFingerprintLearned(fp)
+                        true
+                    }
+                    fp.equals(expected, ignoreCase = true) -> true
+                    else -> {
+                        mismatchMessage =
+                            "Sidik jari SSH router BERUBAH (tersimpan: $expected, sekarang: $fp). " +
+                                "Transfer ditolak demi keamanan — bila router memang diganti atau " +
+                                "diinstal ulang, hapus sidik jari SSH di profil router (menu Ubah)."
+                        false
+                    }
+                }
+            }
+
+            override fun findExistingAlgorithms(hostname: String, port: Int): List<String> =
+                emptyList()
+        })
+        try {
+            ssh.connect(profile.host.substringBefore(":"), SSH_PORT)
+            ssh.authPassword(profile.username, profile.password)
+        } catch (e: Exception) {
+            try { ssh.disconnect() } catch (_: Exception) {}
+            mismatchMessage?.let { throw ApiException(it) }
+            throw e
+        }
         return ssh
     }
 
-    /** Unduh [remoteName] dari penyimpanan router ke [out]. */
-    suspend fun download(profile: RouterProfile, remoteName: String, out: OutputStream) {
+    /**
+     * Unduh [remoteName] dari penyimpanan router ke [out].
+     * [onProgress] dipanggil berkala dengan (byte terunduh, total byte).
+     */
+    suspend fun download(
+        profile: RouterProfile,
+        remoteName: String,
+        out: OutputStream,
+        onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
+        onFingerprintLearned: (String) -> Unit = {}
+    ) {
         withContext(Dispatchers.IO) {
-            val ssh = connect(profile)
+            val ssh = connect(profile, onFingerprintLearned)
             try {
                 ssh.newSFTPClient().use { sftp ->
+                    val total = try { sftp.lstat(remoteName).size } catch (_: Exception) { -1L }
+                    if (total > MAX_DOWNLOAD_BYTES) {
+                        throw ApiException(
+                            "File '$remoteName' terlalu besar untuk diunduh " +
+                                "(${total / (1024 * 1024)} MB; batas 200 MB)."
+                        )
+                    }
                     val remote = sftp.open(remoteName, EnumSet.of(OpenMode.READ))
                     try {
                         val buffer = ByteArray(32 * 1024)
@@ -62,6 +122,10 @@ object SftpRepo {
                             if (n <= 0) break
                             out.write(buffer, 0, n)
                             offset += n
+                            if (offset > MAX_DOWNLOAD_BYTES) {
+                                throw ApiException("Unduhan melewati batas 200 MB — dibatalkan.")
+                            }
+                            onProgress(offset, total)
                         }
                         out.flush()
                     } finally {
@@ -75,9 +139,14 @@ object SftpRepo {
     }
 
     /** Unggah isi [input] ke router sebagai [remoteName] (menimpa bila sudah ada). */
-    suspend fun upload(profile: RouterProfile, input: InputStream, remoteName: String) {
+    suspend fun upload(
+        profile: RouterProfile,
+        input: InputStream,
+        remoteName: String,
+        onFingerprintLearned: (String) -> Unit = {}
+    ) {
         withContext(Dispatchers.IO) {
-            val ssh = connect(profile)
+            val ssh = connect(profile, onFingerprintLearned)
             try {
                 ssh.newSFTPClient().use { sftp ->
                     val remote = sftp.open(
@@ -97,6 +166,22 @@ object SftpRepo {
                         remote.close()
                     }
                 }
+            } finally {
+                ssh.disconnect()
+            }
+        }
+    }
+
+    /** Hapus file [remoteName] dari penyimpanan router. */
+    suspend fun delete(
+        profile: RouterProfile,
+        remoteName: String,
+        onFingerprintLearned: (String) -> Unit = {}
+    ) {
+        withContext(Dispatchers.IO) {
+            val ssh = connect(profile, onFingerprintLearned)
+            try {
+                ssh.newSFTPClient().use { sftp -> sftp.rm(remoteName) }
             } finally {
                 ssh.disconnect()
             }
