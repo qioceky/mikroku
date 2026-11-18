@@ -70,6 +70,7 @@ private val menuCategories: List<Pair<String, List<MenuItem>>> = listOf(
     ),
     "Layanan" to listOf(
         MenuItem("hotspot", Fa.WIFI, "Hotspot", "Server, user, voucher, dan sesi aktif"),
+        MenuItem("kidcontrol", Fa.CHILD, "Kid Control", "Jadwal internet anak, pause, batas kecepatan"),
         MenuItem("pppoe", Fa.PLUG, "PPPoE", "Secret PPP + sesi aktif"),
         MenuItem("queue", Fa.LIST_OL, "Queue", "Simple queue + queue tree"),
         MenuItem("wireless", Fa.TOWER, "Wireless", "SSID, mode, dan perangkat terhubung"),
@@ -190,6 +191,7 @@ fun NetworkSectionScreen(section: String, manager: SessionManager, onBack: () ->
         "addrlist" -> AddressListScreen(manager, onBack)
         "koneksi" -> ConnectionsScreen(manager, onBack)
         "hotspot" -> HotspotScreen(manager, onBack)
+        "kidcontrol" -> KidControlScreen(manager, onBack)
         "pppoe" -> PppScreen(manager, onBack)
         "queue" -> QueueScreen(manager, onBack)
         "tools" -> ToolsScreen(manager, onBack)
