@@ -376,6 +376,48 @@ object AdvancedRepo {
                 "ulang dengan mode API-SSL $port."
         } }
 
+    /**
+     * Kembalikan API-SSL ke keadaan default pabrik: lepas sertifikat dari
+     * service api-ssl (certificate=none) lalu hapus sertifikat 'mikroku-api'
+     * yang dibuat [setupApiSsl]. Sertifikat lain milik user tidak dihapus —
+     * hanya dilepas dari service. Keadaan disabled service tidak diubah.
+     * Dalam keadaan default, koneksi 8729 memang tidak bisa dipakai.
+     */
+    suspend fun resetApiSsl(client: MikrotikClient): String =
+        withContext(Dispatchers.IO) { synchronized(client) {
+            val svc = client.run("/ip/service/print").firstOrNull { it["name"] == "api-ssl" }
+                ?: throw ApiException("Service api-ssl tidak ditemukan di router")
+            val svcId = svc[".id"] ?: throw ApiException("ID service api-ssl tidak terbaca")
+            val certName = "mikroku-api"
+            val currentCert = (svc["certificate"] ?: "none").ifBlank { "none" }
+            val certAda = client.run("/certificate/print").any { it["name"] == certName }
+            if (currentCert == "none" && !certAda) {
+                return@synchronized "API-SSL sudah dalam keadaan default (certificate=none, " +
+                    "tidak ada sertifikat 'mikroku-api') — tidak ada yang diubah."
+            }
+            // Lepas sertifikat dari service DULU — sertifikat yang sedang
+            // dipakai service tidak bisa dihapus dari router.
+            if (currentCert != "none") {
+                client.runCommand("/ip/service/set", "=.id=$svcId", "=certificate=none")
+            }
+            var removed = false
+            val certNow = client.run("/certificate/print").firstOrNull { it["name"] == certName }
+            val certId = certNow?.get(".id")
+            if (certId != null) {
+                client.runCommand("/certificate/remove", "=.id=$certId")
+                removed = true
+            }
+            val after = client.run("/ip/service/print").firstOrNull { it["name"] == "api-ssl" }
+            if ((after?.get("certificate") ?: "none") != "none") {
+                throw ApiException("Gagal mengembalikan api-ssl ke default")
+            }
+            "API-SSL dikembalikan ke default: service api-ssl sekarang certificate=none" +
+                (if (removed) ", sertifikat 'mikroku-api' dihapus dari router" else "") +
+                ". Dalam keadaan default ini koneksi 8729 TIDAK bisa dipakai (bawaan " +
+                "pabrik) — koneksi 8728 tetap normal. Siapkan lagi kapan pun lewat " +
+                "tombol Siapkan API-SSL."
+        } }
+
     suspend fun fetchNeighbors(client: MikrotikClient): List<NeighborEntry> =
         withContext(Dispatchers.IO) { synchronized(client) {
             client.run("/ip/neighbor/print").map { r ->

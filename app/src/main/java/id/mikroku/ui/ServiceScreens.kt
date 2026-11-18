@@ -951,6 +951,34 @@ fun ToolsScreen(manager: SessionManager, onBack: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             Text(it, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
+        Spacer(Modifier.height(10.dp))
+        var sslResetConfirm by remember { mutableStateOf(false) }
+        NeoButton(
+            when {
+                sslBusy -> "Mengembalikan…"
+                sslResetConfirm -> "Yakin? Ketuk Sekali Lagi untuk Reset"
+                else -> "Kembalikan API-SSL ke Default"
+            },
+            fill = if (sslResetConfirm) MikroRed else CardFill,
+            textColor = if (sslResetConfirm) Color.White else Ink,
+            enabled = !sslBusy
+        ) {
+            if (!sslResetConfirm) {
+                sslResetConfirm = true
+                return@NeoButton
+            }
+            sslResetConfirm = false
+            sslBusy = true
+            sslMsg = null
+            scope.launch {
+                try {
+                    sslMsg = manager.runNoRetry { AdvancedRepo.resetApiSsl(it) }
+                } catch (e: Exception) {
+                    sslMsg = friendlyError(e)
+                }
+                sslBusy = false
+            }
+        }
         Spacer(Modifier.height(16.dp))
     }
 }
