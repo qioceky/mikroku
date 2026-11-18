@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -110,8 +111,8 @@ fun Sparkline(
     )
     LaunchedEffect(Unit) { started = true }
     Canvas(modifier.fillMaxWidth().height(38.dp)) {
-        clipRect(right = size.width * progress) {
         if (values.size < 2) return@Canvas
+        clipRect(right = size.width * progress) {
         val max = (maxValue ?: (values.maxOrNull() ?: 1f)).coerceAtLeast(1f)
         val pad = 2.dp.toPx()
         val stepX = size.width / (values.size - 1)
