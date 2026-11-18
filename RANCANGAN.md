@@ -221,7 +221,12 @@ berdasarkan kelayakan lewat API, bukan urutan tampil di app resmi.
 - **Update RouterBOOT terpisah**: `/system/routerboard/print` tampilkan
   current-firmware vs upgrade-firmware; tombol upgrade =
   `/system/routerboard/upgrade` + tawaran reboot (konfirmasi dua langkah).
-  Terpisah dari update paket RouterOS yang sudah ada.
+- **Update RouterOS (cek & pasang)**: KOREKSI — Sistem > Paket di
+  v1.2.4 BARU menampilkan daftar paket + versi (`/system/package/print`),
+  belum ada cek/pasang update. Tambahkan: `/system/package/update/check-for-updates`
+  (tampilkan versi terpasang vs terbaru + channel), lalu
+  `/system/package/update/download` / `install` dengan konfirmasi dua
+  langkah + peringatan reboot. Terpisah dari RouterBOOT di atas.
 
 #### v1.4 — Kid Control
 - Menu baru **Kid Control**: user anak + device (nama + MAC) dari
@@ -250,16 +255,27 @@ berdasarkan kelayakan lewat API, bukan urutan tampil di app resmi.
 - **QR tambah router**: scan QR berisi host/user (format teks MikroKu
   sendiri + terima format `winbox://host/user`) untuk mengisi formulir
   Tambah Router. Password TIDAK pernah dimasukkan ke QR.
+- **Grup router bertingkat**: daftar router sekarang masih satu daftar
+  datar; tambahkan grup + sub-grup (parent/child, seperti vault app
+  resmi) — pindah grup per profil, grup kosong boleh dihapus, profil
+  tanpa grup tetap tampil di tingkat atas. Murni sisi HP (penyimpanan
+  profil), tanpa perintah router.
 
 ### Tingkat 2 — bisa lewat API, tapi butuh hardware/router khusus
 
-- **Grafik sinyal LTE/5G**: `/interface/lte/monitor` (RSRP, RSRQ, RSSI,
-  SINR, operator, teknologi akses) + grafik riwayat sesi — hanya tampil
-  bila router punya interface LTE. Router user (hAP lite) tidak punya;
-  bangun bila ada perangkat uji.
-- **eSIM provisioning**: perintah eSIM hanya ada di RouterOS v7 pada
-  board LTE tertentu — tunda sampai ada hardware-nya; dicatat agar tidak
-  hilang.
+- **LTE lengkap + grafik sinyal LTE/5G**: menu LTE yang utuh —
+  status (operator, teknologi akses, status PIN, kekuatan/kualitas
+  sinyal), daftar APN (`/interface/lte/apn`), dan grafik
+  `/interface/lte/monitor` (RSRP, RSRQ, RSSI, SINR) + grafik riwayat
+  sesi — hanya tampil bila router punya interface LTE. Router user
+  (hAP lite) tidak punya; bangun bila ada perangkat uji.
+- **eSIM provisioning + kelola profil**: perintah eSIM hanya ada di
+  RouterOS v7 pada board LTE tertentu — cakupannya: provisioning profil
+  baru, aktivasi profil, ganti nama panggilan profil, ganti slot SIM.
+  Tunda sampai ada hardware-nya; dicatat agar tidak hilang.
+- **Tampilan Mesh khusus**: layar khusus wireless mesh (anggota mesh +
+  statusnya) — di v1.2.4 wireless masih menu umum; nilai kelayakannya
+  lewat API setelah Scanner, hanya untuk router yang memakai mesh.
 - **Wireless Scanner**: `/interface/wireless/scan` (sekali jalan, daftar
   jaringan sekitar) — EKSPERIMENTAL: scan mengganggu koneksi klien di
   radio yang sama; wajib peringatan sebelum jalan. Spectral history
@@ -275,9 +291,21 @@ berdasarkan kelayakan lewat API, bukan urutan tampil di app resmi.
 - **RoMON**: protokol L2 proprietary MikroTik, tidak diekspos API.
   Kebutuhan remote-nya sudah dijawab jalur VPN (lihat rencana Remote
   MikroTik via VPS), bukan RoMON.
-- **Import/Export `.wbx`**: format database biner WinBox desktop, tidak
-  terdokumentasi; riset terpisah bila suatu saat dibutuhkan. Ekspor/
-  impor profil MikroKu memakai format sendiri.
+- **Konek via MAC Address**: jalur L2 WinBox (MAC-Telnet/WinBox),
+  bukan TCP/IP — MikroKu hanya konek lewat IP; satu paket batasan
+  protokol dengan RoMON di atas.
+- **Menu WinBox generik dinamis**: app resmi mengunduh definisi menu
+  dari router; menu MikroKu adalah menu tetap yang dikode di aplikasi.
+  Menggenerikkan menu = mengganti arsitektur ke protokol WinBox —
+  tidak dikejar (sudah dijelaskan di paragraf pembuka bagian ini).
+- **Import/Export `.wbx` + Database WinBox Remote**: format database
+  biner WinBox desktop, tidak terdokumentasi; termasuk memakai file
+  database WinBox remote sebagai sumber daftar router. Riset terpisah
+  bila suatu saat dibutuhkan. Ekspor/impor profil MikroKu memakai
+  format sendiri.
+- **Info Layanan Push MikroTik**: pemberitahuan versi minimum & info
+  penting dari `api.mikrotik.com` lewat FCM — MikroKu tanpa layanan
+  push/cloud secara desain (lihat "Yang TIDAK masuk"); tidak dikejar.
 - **Key Manager (ganti software key)**: mengganti lisensi router bukan
   kebutuhan admin harian dan berisiko mengunci lisensi; tidak dikejar.
 - **WatchTik / Garmin**: butuh aplikasi pendamping di jam — di luar scope.
