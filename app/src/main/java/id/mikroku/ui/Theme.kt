@@ -1,9 +1,18 @@
 package id.mikroku.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -18,7 +27,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -93,7 +104,13 @@ fun Sparkline(
     modifier: Modifier = Modifier,
     maxValue: Float? = null
 ) {
+    var started by remember { mutableStateOf(false) }
+    val progress by animateFloatAsState(
+        if (started) 1f else 0f, tween(700), label = "sparkProgress"
+    )
+    LaunchedEffect(Unit) { started = true }
     Canvas(modifier.fillMaxWidth().height(38.dp)) {
+        clipRect(right = size.width * progress) {
         if (values.size < 2) return@Canvas
         val max = (maxValue ?: (values.maxOrNull() ?: 1f)).coerceAtLeast(1f)
         val pad = 2.dp.toPx()
@@ -111,6 +128,7 @@ fun Sparkline(
         fill.close()
         drawPath(fill, color.copy(alpha = 0.22f))
         drawPath(line, color, style = Stroke(width = 2.dp.toPx()))
+        }
     }
 }
 
@@ -122,20 +140,34 @@ fun NeoCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val sink by animateDpAsState(
+        if (pressed && onClick != null) 3.dp else 0.dp, tween(90), label = "cardSink"
+    )
     Box(modifier = modifier.padding(end = 4.dp, bottom = 4.dp)) {
         Box(
             Modifier
                 .matchParentSize()
-                .offset(x = 4.dp, y = 4.dp)
+                .offset(x = 4.dp - sink, y = 4.dp - sink)
                 .clip(RoundedCornerShape(14.dp))
                 .background(Shadow)
         )
         val inner = Modifier
             .fillMaxWidth()
+            .offset(x = sink, y = sink)
             .clip(RoundedCornerShape(14.dp))
             .background(fill)
             .border(2.5.dp, Ink, RoundedCornerShape(14.dp))
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = interaction, indication = null
+                    ) { onClick() }
+                } else {
+                    Modifier
+                }
+            )
             .padding(12.dp)
         Column(inner, content = content)
     }
@@ -150,21 +182,35 @@ fun NeoButton(
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val sink by animateDpAsState(
+        if (pressed && enabled) 3.dp else 0.dp, tween(90), label = "btnSink"
+    )
     Box(modifier = modifier.padding(end = 4.dp, bottom = 4.dp)) {
         Box(
             Modifier
                 .matchParentSize()
-                .offset(x = 4.dp, y = 4.dp)
+                .offset(x = 4.dp - sink, y = 4.dp - sink)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Shadow)
         )
         Box(
             Modifier
                 .fillMaxWidth()
+                .offset(x = sink, y = sink)
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (enabled) fill else DisabledFill)
                 .border(2.5.dp, Ink, RoundedCornerShape(12.dp))
-                .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+                .then(
+                    if (enabled) {
+                        Modifier.clickable(
+                            interactionSource = interaction, indication = null
+                        ) { onClick() }
+                    } else {
+                        Modifier
+                    }
+                )
                 .padding(vertical = 11.dp),
             contentAlignment = androidx.compose.ui.Alignment.Center
         ) {
@@ -176,21 +222,27 @@ fun NeoButton(
 /** Tombol ikon persegi khas neobrutal — untuk navigasi (kembali, muat ulang, dll). */
 @Composable
 fun NeoIconButton(icon: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val sink by animateDpAsState(
+        if (pressed) 2.dp else 0.dp, tween(90), label = "iconSink"
+    )
     Box(modifier.padding(end = 3.dp, bottom = 3.dp)) {
         Box(
             Modifier
                 .matchParentSize()
-                .offset(x = 3.dp, y = 3.dp)
+                .offset(x = 3.dp - sink, y = 3.dp - sink)
                 .clip(RoundedCornerShape(10.dp))
                 .background(Shadow)
         )
         Box(
             Modifier
                 .size(38.dp)
+                .offset(x = sink, y = sink)
                 .clip(RoundedCornerShape(10.dp))
                 .background(CardFill)
                 .border(2.5.dp, Ink, RoundedCornerShape(10.dp))
-                .clickable { onClick() },
+                .clickable(interactionSource = interaction, indication = null) { onClick() },
             contentAlignment = androidx.compose.ui.Alignment.Center
         ) {
             FaIcon(icon, size = 15.sp)
@@ -200,11 +252,19 @@ fun NeoIconButton(icon: String, modifier: Modifier = Modifier, onClick: () -> Un
 
 @Composable
 fun StatusDot(online: Boolean?, modifier: Modifier = Modifier) {
-    val color = when (online) {
+    val base = when (online) {
         true -> MikroGreen
         false -> MikroRed
         null -> Color(0xFFCCCCCC)
     }
+    // Titik hijau berdenyut pelan tanda router hidup & terpantau.
+    val pulseTransition = rememberInfiniteTransition(label = "dotPulse")
+    val pulse by pulseTransition.animateFloat(
+        initialValue = 1f, targetValue = 0.5f,
+        animationSpec = infiniteRepeatable(tween(950), RepeatMode.Reverse),
+        label = "dotPulseValue"
+    )
+    val color = if (online == true) base.copy(alpha = pulse) else base
     Box(
         modifier
             .padding(1.dp)

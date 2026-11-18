@@ -130,8 +130,9 @@ fun RouterDetailScreen(
                         AnimatedContent(
                             targetState = tab,
                             transitionSpec = {
-                                (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 5 }) togetherWith
-                                    (fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { -it / 5 })
+                                val fwd = targetState >= initialState
+                                (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { if (fwd) it / 5 else -it / 5 }) togetherWith
+                                    (fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { if (fwd) -it / 5 else it / 5 })
                             },
                             label = "tabContent"
                         ) { t ->
@@ -397,9 +398,17 @@ private fun DashboardTab(manager: SessionManager, profile: RouterProfile) {
 
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier = Modifier, percent: Int?) {
+    // Nilai persen dianimasikan supaya perubahan antar-polling mengalir,
+    // tidak melompat. Teks nilai ikut angka animasi bila formatnya persen.
+    val animPercent by androidx.compose.animation.core.animateIntAsState(
+        targetValue = percent ?: 0,
+        animationSpec = androidx.compose.animation.core.tween(650),
+        label = "statPercent"
+    )
+    val shownValue = if (percent != null && value.endsWith("%")) "$animPercent%" else value
     NeoCard(modifier) {
         Text(label, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Muted)
-        Text(value, fontWeight = FontWeight.Black, fontSize = 22.sp)
+        Text(shownValue, fontWeight = FontWeight.Black, fontSize = 22.sp)
         if (percent != null) {
             Spacer(Modifier.height(6.dp))
             Box(
@@ -411,13 +420,13 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
                     .background(CardFill)
             ) {
                 val barColor = when {
-                    percent >= 85 -> MikroRed
-                    percent >= 60 -> MikroYellow
+                    animPercent >= 85 -> MikroRed
+                    animPercent >= 60 -> MikroYellow
                     else -> MikroGreen
                 }
                 Box(
                     Modifier
-                        .fillMaxWidth(percent.coerceIn(0, 100) / 100f)
+                        .fillMaxWidth(animPercent.coerceIn(0, 100) / 100f)
                         .height(10.dp)
                         .background(barColor)
                 )

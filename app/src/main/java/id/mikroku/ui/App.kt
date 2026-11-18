@@ -1,5 +1,12 @@
 package id.mikroku.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -119,7 +126,22 @@ fun MikroKuApp() {
             if (!unlocked) {
                 LockScreen(onUnlocked = { unlocked = true })
             } else {
-            when (val s = screen) {
+            AnimatedContent(
+                targetState = screen,
+                transitionSpec = {
+                    // Maju (membuka layar) geser dari kanan; kembali sebaliknya.
+                    val forward = screenDepth(targetState) >= screenDepth(initialState)
+                    (fadeIn(tween(190)) + slideInHorizontally(tween(230)) { w ->
+                        if (forward) w / 6 else -w / 6
+                    }).togetherWith(
+                        fadeOut(tween(150)) + slideOutHorizontally(tween(190)) { w ->
+                            if (forward) -w / 6 else w / 6
+                        }
+                    )
+                },
+                label = "transisiLayar"
+            ) { s ->
+            when (s) {
                 is Screen.Home -> {
                     LaunchedEffect(routers.size) { checkStatuses() }
                     HomeScreen(
@@ -178,6 +200,7 @@ fun MikroKuApp() {
                 is Screen.Guide -> GuideScreen(onBack = { screen = Screen.Home })
                 is Screen.About -> AboutScreen(onBack = { screen = Screen.Home })
             }
+            }
             storeError?.let { err ->
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { storeError = null },
@@ -213,9 +236,10 @@ fun RouterCard(
     profile: RouterProfile,
     online: Boolean?,
     onOpen: () -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    NeoCard(onClick = onOpen) {
+    NeoCard(modifier = modifier, onClick = onOpen) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Row {
                 StatusDot(online, Modifier.padding(top = 5.dp, end = 8.dp))
@@ -264,4 +288,10 @@ fun RouterCard(
             )
         }
     }
+}
+
+/** Kedalaman layar untuk arah transisi: Beranda paling luar. */
+private fun screenDepth(s: Screen): Int = when (s) {
+    is Screen.Home -> 0
+    else -> 1
 }

@@ -3,11 +3,14 @@ package id.mikroku.ui
 import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Context
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -15,12 +18,15 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -60,6 +66,18 @@ fun LockScreen(onUnlocked: () -> Unit) {
     val context = LocalContext.current
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    // Goyangan ikon gembok saat PIN salah.
+    val shake = remember { Animatable(0f) }
+    var shakeKey by remember { mutableStateOf(0) }
+    LaunchedEffect(shakeKey) {
+        if (shakeKey > 0) {
+            shake.snapTo(0f)
+            shake.animateTo(-11f, tween(45))
+            shake.animateTo(10f, tween(60))
+            shake.animateTo(-6f, tween(55))
+            shake.animateTo(0f, tween(50))
+        }
+    }
 
     val keyguard = remember {
         context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
@@ -100,7 +118,10 @@ fun LockScreen(onUnlocked: () -> Unit) {
             .padding(24.dp)
     ) {
         Spacer(Modifier.height(48.dp))
-        FaIcon(Fa.LOCK, size = 34.sp)
+        FaIcon(
+            Fa.LOCK, size = 34.sp,
+            modifier = Modifier.offset { IntOffset(shake.value.roundToInt(), 0) }
+        )
         Spacer(Modifier.height(12.dp))
         Text("MikroKu Terkunci", fontWeight = FontWeight.Black, fontSize = 22.sp)
         Spacer(Modifier.height(4.dp))
@@ -137,6 +158,7 @@ fun LockScreen(onUnlocked: () -> Unit) {
             } else {
                 error = "PIN salah — coba lagi."
                 pin = ""
+                shakeKey++
             }
         }
         if (deviceSecure) {

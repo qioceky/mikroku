@@ -463,6 +463,7 @@ private fun SavedTab(
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(ungrouped, key = { it.id }) { profile ->
                     RouterCard(
+                        modifier = Modifier.animateItem(),
                         profile = profile,
                         online = statuses[profile.id],
                         onOpen = { onOpen(profile) },
@@ -481,6 +482,7 @@ private fun SavedTab(
                     }
                     items(members, key = { it.id }) { profile ->
                         RouterCard(
+                            modifier = Modifier.animateItem(),
                             profile = profile,
                             online = statuses[profile.id],
                             onOpen = { onOpen(profile) },
@@ -551,7 +553,7 @@ private fun DiscoveredTab(onPick: (DiscoveredRouter) -> Unit) {
         message?.let { Text(it, fontSize = 12.sp, color = Muted); Spacer(Modifier.height(10.dp)) }
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(results, key = { it.key }) { d ->
-                NeoCard(onClick = { onPick(d) }) {
+                NeoCard(modifier = Modifier.animateItem(), onClick = { onPick(d) }) {
                     Row {
                         StatusDot(true, Modifier.padding(top = 5.dp, end = 8.dp))
                         Column {
