@@ -195,6 +195,97 @@ dikejar. Semua yang bisa dilakukan console/API adalah target realistis.
 - Tools lengkap: bandwidth test, torch streaming, netwatch.
 - Konsol API mentah. Routing dinamis (OSPF/RIP) sebatas lihat + edit dasar.
 
+## Roadmap lanjutan v1.3+ — celah dari aplikasi resmi v1.5.10
+
+Sumber: bedah statis APK resmi MikroTik v1.5.10 dengan REA + Androguard
+(2026-11-18; laporan `~/workspace/mikrotik-bedah-1510/BEDAH-MikroTik-1.5.10-FITUR-LENGKAP.md`
++ PDF `Daftar-Fitur-Lengkap-MikroTik-1.5.10.pdf`). App resmi memakai
+protokol WinBox biner ("Nova", port 8291) dan menu generik yang diunduh
+dari router; MikroKu memakai API 8728/8729. Celah di bawah sudah dicek
+satu-satu ke source v1.2.4 — semuanya memang BELUM ada — lalu diurutkan
+berdasarkan kelayakan lewat API, bukan urutan tampil di app resmi.
+
+### Tingkat 1 — bisa penuh lewat API (antre bangun)
+
+#### v1.3 — Wizard & status (cepat, risiko rendah)
+- **Port Forwarding wizard**: formulir sederhana (protokol TCP/UDP,
+  in-interface/list, dst-address, dst-port, to-address, to-port, komentar)
+  yang menulis rule dst-nat biasa ke `/ip/firewall/nat/add` — di belakang
+  layar tetap rule NAT yang sama dengan CRUD Firewall, wizard hanya
+  menyederhanakan. Rule hasil wizard ditandai komentarnya agar dikenali.
+- **Internet Detect di halaman Status**: baca `/interface/detect-internet/print`
+  + status per interface (`internet`/`wan`/`lan`/`no-link`), tampilkan
+  kartu Internet di dashboard; enable/disable lewat
+  `/interface/detect-internet/set`. Bila fitur tidak aktif di router,
+  kartu disembunyikan (pola field-hilang yang sama seperti health).
+- **Update RouterBOOT terpisah**: `/system/routerboard/print` tampilkan
+  current-firmware vs upgrade-firmware; tombol upgrade =
+  `/system/routerboard/upgrade` + tawaran reboot (konfirmasi dua langkah).
+  Terpisah dari update paket RouterOS yang sudah ada.
+
+#### v1.4 — Kid Control
+- Menu baru **Kid Control**: user anak + device (nama + MAC) dari
+  `/ip/kid-control` dan `/ip/kid-control/device` (CRUD penuh).
+- Jadwal mingguan: baca/tulis field `mon`…`sun` (rentang jam per hari) —
+  editor per hari dengan rentang waktu; status `blocked`/rate dari
+  `/ip/kid-control/print` (`rate-limit`, `blocked`).
+- Aksi cepat: **Pause** (`/ip/kid-control/pause`, durasi / sampai jam /
+  indefinite) + Resume, dan rate limit per user.
+- Catatan: Kid Control tersedia di RouterOS v6 (≥6.41) dan v7 — router
+  user v6.48.6 mendukung. Timetable versi MikroKu = editor rentang per
+  hari (setara fungsi), bukan replika gesture drag app resmi.
+
+#### v1.5 — Keamanan & brankas lokal
+- **SUS versi API (deteksi router terkompromi)**: pemindaian heuristik —
+  script (`/system/script`), scheduler (`/system/scheduler`), rule
+  firewall/address-list mencurigakan, DNS statis asing, user asing —
+  ditampilkan sebagai daftar temuan dengan tombol Nonaktifkan per item
+  (konfirmasi dua langkah) + anjuran Netinstall & ganti password.
+  JUJUR: ini heuristik kita, BUKAN algoritma SUS resmi MikroTik (tidak
+  dipublikasikan); hasil diberi label "indikasi", bukan vonis.
+- **Kunci aplikasi**: master password / PIN + buka pakai sidik jari
+  (BiometricPrompt) sebelum daftar router tampil; kredensial tetap
+  terenkripsi Keystore seperti sekarang — ini lapisan kunci di sisi HP,
+  meniru pola vault app resmi.
+- **QR tambah router**: scan QR berisi host/user (format teks MikroKu
+  sendiri + terima format `winbox://host/user`) untuk mengisi formulir
+  Tambah Router. Password TIDAK pernah dimasukkan ke QR.
+
+### Tingkat 2 — bisa lewat API, tapi butuh hardware/router khusus
+
+- **Grafik sinyal LTE/5G**: `/interface/lte/monitor` (RSRP, RSRQ, RSSI,
+  SINR, operator, teknologi akses) + grafik riwayat sesi — hanya tampil
+  bila router punya interface LTE. Router user (hAP lite) tidak punya;
+  bangun bila ada perangkat uji.
+- **eSIM provisioning**: perintah eSIM hanya ada di RouterOS v7 pada
+  board LTE tertentu — tunda sampai ada hardware-nya; dicatat agar tidak
+  hilang.
+- **Wireless Scanner**: `/interface/wireless/scan` (sekali jalan, daftar
+  jaringan sekitar) — EKSPERIMENTAL: scan mengganggu koneksi klien di
+  radio yang sama; wajib peringatan sebelum jalan. Spectral history
+  (`spectral-scan`) streaming-nya berat lewat API — tunda, nilai ulang
+  setelah Scanner terbukti.
+
+### Tingkat 3 — TIDAK dikejar (batas protokol, dicatat agar tidak ditanya ulang)
+
+- **Safe Mode & Terminal CLI asli & protokol WinBox (Nova/8291)**:
+  ketiganya satu paket protokol biner proprietary; menirunya = menulis
+  klien WinBox dari nol (risiko tinggi, di luar jalur API). Padanan
+  MikroKu tetap Konsol API.
+- **RoMON**: protokol L2 proprietary MikroTik, tidak diekspos API.
+  Kebutuhan remote-nya sudah dijawab jalur VPN (lihat rencana Remote
+  MikroTik via VPS), bukan RoMON.
+- **Import/Export `.wbx`**: format database biner WinBox desktop, tidak
+  terdokumentasi; riset terpisah bila suatu saat dibutuhkan. Ekspor/
+  impor profil MikroKu memakai format sendiri.
+- **Key Manager (ganti software key)**: mengganti lisensi router bukan
+  kebutuhan admin harian dan berisiko mengunci lisensi; tidak dikejar.
+- **WatchTik / Garmin**: butuh aplikasi pendamping di jam — di luar scope.
+- **Dude Network Map asli**: The Dude adalah paket server terpisah.
+  Bila nanti mau peta jaringan, peta versi MikroKu bisa dibangun dari
+  data Neighbors + ARP + lease yang sudah dibaca app (ide terpisah,
+  bukan tiruan Dude).
+
 ## Yang TIDAK masuk (sengaja)
 - Klon WinBox 100%: hal yang tidak diekspos API/console tidak dikejar
   (lihat batas jujur di atas). Konfigurasi sangat mendalam (BGP/MPLS
