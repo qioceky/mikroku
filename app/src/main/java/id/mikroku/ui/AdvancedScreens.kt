@@ -147,33 +147,16 @@ fun WirelessScreen(manager: SessionManager, onBack: () -> Unit) {
                 emptyText = "Tidak ada profil keamanan.",
                 itemKey = { it.id }
             ) { e, changed ->
-                NeoCard {
-                    Text(
-                        e.name + if (e.isDefault) " (default)" else "",
-                        fontWeight = FontWeight.Black, fontSize = 15.sp
-                    )
-                    val meta = buildString {
-                        if (e.mode.isNotBlank()) append(e.mode)
-                        if (e.authTypes.isNotBlank()) append(" • ${e.authTypes}")
-                    }
-                    if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 11.sp)
-                    Text(
-                        "Password WPA2: ${if (e.hasWpa2Key) "sudah diset" else "belum diset"}",
-                        color = Muted, fontSize = 11.sp
-                    )
-                    if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SmallButton("Edit") { form = securityProfileForm(e) }
-                        if (!e.isDefault) {
-                            ConfirmActionButton("Hapus", run = {
-                                manager.runNoRetry {
-                                    CrudRepo.remove(it, "/interface/wireless/security-profiles", e.id)
-                                }
-                            }, onDone = changed)
+                SecurityProfileCard(
+                    e = e,
+                    onEdit = { form = securityProfileForm(e) },
+                    onDelete = if (e.isDefault) null else ({
+                        manager.runNoRetry {
+                            CrudRepo.remove(it, "/interface/wireless/security-profiles", e.id)
                         }
-                    }
-                }
+                    }),
+                    onChanged = changed
+                )
             }
         }
     }
@@ -190,8 +173,8 @@ private fun securityProfileForm(existing: SecurityProfileEntry?): CrudFormSpec {
                 options = listOf("dynamic-keys", "static-keys-optional", "static-keys-required", "none")),
             CrudField("authentication-types", "Autentikasi", existing?.authTypes ?: "wpa2-psk",
                 options = listOf("wpa2-psk", "wpa-psk,wpa2-psk", "wpa-psk")),
-            CrudField("wpa2-pre-shared-key", "Password WPA2", "",
-                hint = if (edit) "Kosongkan bila tidak diubah" else "Password WiFi (min. 8 karakter)",
+            CrudField("wpa2-pre-shared-key", "Password WPA2", existing?.wpa2Key ?: "",
+                hint = if (edit) "Terisi password saat ini — kosongkan bila tidak diubah" else "Password WiFi (min. 8 karakter)",
                 skipBlankOnEdit = true, isPassword = true),
             CrudField("comment", "Komentar", existing?.comment ?: "")
         ),
@@ -881,5 +864,54 @@ fun QuickSetScreen(manager: SessionManager, onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/**
+ * Kartu satu profil keamanan wireless. Password WPA2 tampil TERSAMAR
+ * dengan tombol Lihat/Tutup (keputusan user 2026-11-19, menyusul
+ * hotspot/PPP v1.1.5) — tidak pernah tampil polos tanpa ketukan.
+ */
+@Composable
+private fun SecurityProfileCard(
+    e: SecurityProfileEntry,
+    onEdit: () -> Unit,
+    onDelete: (suspend () -> Unit)?,
+    onChanged: () -> Unit
+) {
+    var showKey by remember(e.id) { mutableStateOf(false) }
+    NeoCard {
+        Text(
+            e.name + if (e.isDefault) " (default)" else "",
+            fontWeight = FontWeight.Black, fontSize = 15.sp
+        )
+        val meta = buildString {
+            if (e.mode.isNotBlank()) append(e.mode)
+            if (e.authTypes.isNotBlank()) append(" • ${e.authTypes}")
+        }
+        if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 11.sp)
+        if (e.wpa2Key.isEmpty()) {
+            Text("Password WPA2: belum diset", color = Muted, fontSize = 11.sp)
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text(
+                    "Password WPA2: " + if (showKey) e.wpa2Key else "••••••••",
+                    color = Muted, fontSize = 11.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                SmallButton(if (showKey) "Tutup" else "Lihat") { showKey = !showKey }
+            }
+        }
+        if (e.comment.isNotBlank()) Text(e.comment, color = Muted, fontSize = 11.sp)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SmallButton("Edit") { onEdit() }
+            if (onDelete != null) {
+                ConfirmActionButton("Hapus", run = onDelete, onDone = onChanged)
+            }
+        }
     }
 }

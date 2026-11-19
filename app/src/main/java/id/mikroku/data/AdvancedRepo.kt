@@ -72,8 +72,12 @@ data class SecurityProfileEntry(
     val name: String,
     val mode: String,
     val authTypes: String,
-    /** Password TIDAK pernah diambil untuk ditampilkan — hanya status terisi/kosong. */
-    val hasWpa2Key: Boolean,
+    /**
+     * Kunci WPA2 apa adanya dari API (RouterOS memang menyerahkannya polos).
+     * Ditampilkan tersamar + tombol Lihat atas keputusan user 2026-11-19 —
+     * menyusul hotspot/PPP di v1.1.5. Kosong = belum diset.
+     */
+    val wpa2Key: String,
     val isDefault: Boolean,
     val comment: String
 )
@@ -233,7 +237,7 @@ object AdvancedRepo {
                     name = r["name"] ?: "-",
                     mode = r["mode"] ?: "",
                     authTypes = r["authentication-types"] ?: "",
-                    hasWpa2Key = (r["wpa2-pre-shared-key"] ?: "").isNotEmpty(),
+                    wpa2Key = r["wpa2-pre-shared-key"] ?: "",
                     isDefault = r["name"] == "default",
                     comment = r["comment"] ?: ""
                 )
