@@ -163,7 +163,10 @@ fun <T> PollingCards(
 
 // ---------------- Hotspot ----------------
 
-private fun hotspotUserForm(existing: HotspotUserEntry?): CrudFormSpec {
+private fun hotspotUserForm(
+    existing: HotspotUserEntry?,
+    profileNames: List<String> = emptyList()
+): CrudFormSpec {
     val edit = existing != null
     return CrudFormSpec(
         title = if (edit) "Edit User Hotspot" else "Tambah User Hotspot",
@@ -173,7 +176,11 @@ private fun hotspotUserForm(existing: HotspotUserEntry?): CrudFormSpec {
             CrudField("password", "Password", existing?.password ?: "",
                 hint = if (edit) "Password saat ini dari router — ubah bila perlu" else "Boleh kosong",
                 skipBlankOnEdit = true, isPassword = true),
-            CrudField("profile", "Profil", existing?.profile ?: "", hint = "kosong = profil default"),
+            CrudField(
+                "profile", "Profil", existing?.profile ?: "",
+                hint = "kosong = profil default — atau ketuk profil di bawah",
+                options = profileNames
+            ),
             CrudField("comment", "Komentar", existing?.comment ?: "")
         ),
         submit = { client, v ->
@@ -189,6 +196,16 @@ private fun hotspotUserForm(existing: HotspotUserEntry?): CrudFormSpec {
 
 @Composable
 fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
+    // Daftar profil user hotspot dari router — jadi pilihan chip di form
+    // user (tetap bisa ketik manual). Gagal muat = form seperti semula.
+    var profileNames by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(manager) {
+        profileNames = try {
+            manager.run { ServiceRepo.fetchHotspotProfiles(it) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
     var kind by remember { mutableStateOf("aktif") }
     var tick by remember { mutableStateOf(0) }
     var form by remember { mutableStateOf<CrudFormSpec?>(null) }
@@ -230,7 +247,7 @@ fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
                 }
             }
             "user" -> Column {
-                NeoButton("+ Tambah User", fill = CardFill) { form = hotspotUserForm(null) }
+                NeoButton("+ Tambah User", fill = CardFill) { form = hotspotUserForm(null, profileNames) }
                 Spacer(Modifier.height(10.dp))
                 PollingCards(
                 manager = manager, resetKey = "hs-user", tick = tick, onChanged = { tick++ },
@@ -262,7 +279,7 @@ fun HotspotScreen(manager: SessionManager, onBack: () -> Unit) {
                     }, onDone = onChanged)
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SmallButton("Edit") { form = hotspotUserForm(e) }
+                        SmallButton("Edit") { form = hotspotUserForm(e, profileNames) }
                         ConfirmActionButton("Hapus", run = {
                             manager.runNoRetry { CrudRepo.remove(it, "/ip/hotspot/user", e.id) }
                         }, onDone = onChanged)
